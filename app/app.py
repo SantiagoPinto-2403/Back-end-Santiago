@@ -35,7 +35,7 @@ async def add_patient(request: Request):
 @app.get("/patient", response_model=dict)
 async def GetPatientByIdentifier(system: str, value: str):
     print("solicitud datos:",system,value)
-    status,patient = GetPatientByIdentifier(system,value)
+    status,patient = await GetPatientByIdentifier(system,value)
     if status=='success':
         return patient  # Return patient
     elif status=='notFound':
