@@ -5,6 +5,7 @@ import json
 
 collection = connect_to_mongodb("RIS_DataBase", "Patients")
 
+
 def GetPatientById(patient_id: str):
     try:
         patient = collection.find_one({"_id": ObjectId(patient_id)})
