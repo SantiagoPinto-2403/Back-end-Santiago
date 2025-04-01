@@ -6,7 +6,7 @@ import json
 collection = connect_to_mongodb("RIS_DataBase", "ServiceRequest")
 
 
-def GetServiceRrquestById(service_request_id: str):
+def GetServiceRequestById(service_request_id: str):
     try:
         service_request = collection.find_one({"_id": ObjectId(service_request_id)})
         if service_request:
@@ -18,7 +18,7 @@ def GetServiceRrquestById(service_request_id: str):
 
 def WriteServiceRequest(patient_dict: dict):
     try:
-        ser = servicerequest.model_validate(patient_dict)
+        ser = ServiceRequest.model_validate(patient_dict)
     except Exception as e:
         return f"errorValidating: {str(e)}",None
     validated_service_request_json = ser.model_dump()

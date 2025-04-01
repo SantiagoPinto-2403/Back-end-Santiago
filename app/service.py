@@ -13,6 +13,10 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los encabezados
 )
 
+@app.get("/")
+async def root():
+    return{"message":"API funcionando"}
+
 @app.get("/service/{service_request_id}", response_model=dict)
 async def get_service_request_by_id(service_request_id: str):
     status,service_request = GetServiceRequestById(service_request_id)
