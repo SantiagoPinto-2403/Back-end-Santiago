@@ -14,8 +14,8 @@ app.add_middleware(
 )
 
 @app.get("/service/{service_request_id}", response_model=dict)
-async def get_service_request_by_id(patient_id: str):
-    status,patient = GetServiceRequestById(service_request_id)
+async def get_service_request_by_id(service_request_id: str):
+    status,service_request = GetServiceRequestById(service_request_id)
     if status=='success':
         return service_request  # Return service request
     elif status=='notFound':
@@ -26,7 +26,7 @@ async def get_service_request_by_id(patient_id: str):
 @app.post("/service", response_model=dict)
 async def add_service_request(request: Request):
     new_service_dict = await request.json()
-    status,service_request_id = WriteServiceRequest(new_service_request_dict)
+    status,service_request_id = WriteServiceRequest(new_service_dict)
     if status=='success':
         return {"_id":service_request_id}  # Return patient id
     else:

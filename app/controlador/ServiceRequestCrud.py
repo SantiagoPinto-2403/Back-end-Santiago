@@ -1,6 +1,6 @@
 from connection import connect_to_mongodb
 from bson import ObjectId
-from fhir.resources.patient import ServiceRequest
+from fhir.resources.servicerequest import ServiceRequest
 import json
 
 collection = connect_to_mongodb("RIS_DataBase", "ServiceRequest")
@@ -22,7 +22,7 @@ def WriteServiceRequest(patient_dict: dict):
     except Exception as e:
         return f"errorValidating: {str(e)}",None
     validated_service_request_json = ser.model_dump()
-    result = collection.insert_one(patient_dict)
+    result = collection.insert_one(validated_service_request_json)
     if result:
         inserted_id = str(result.inserted_id)
         return "success",inserted_id
