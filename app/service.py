@@ -25,7 +25,7 @@ async def get_service_request_by_id(patient_id: str):
 
 @app.post("/service", response_model=dict)
 async def add_service_request(request: Request):
-    new_service_dict = dict(await request.json())
+    new_service_dict = await request.json()
     status,service_request_id = WriteServiceRequest(new_service_request_dict)
     if status=='success':
         return {"_id":service_request_id}  # Return patient id
