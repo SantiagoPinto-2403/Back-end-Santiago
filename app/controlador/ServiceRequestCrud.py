@@ -19,10 +19,9 @@ def GetServiceRrquestById(service_request_id: str):
 def WriteServiceRequest(patient_dict: dict):
     try:
         ser = servicerequest.model_validate(patient_dict)
-        print("xd")
     except Exception as e:
         return f"errorValidating: {str(e)}",None
-    validated_service_request_json = pat.model_dump()
+    validated_service_request_json = ser.model_dump()
     result = collection.insert_one(patient_dict)
     if result:
         inserted_id = str(result.inserted_id)
