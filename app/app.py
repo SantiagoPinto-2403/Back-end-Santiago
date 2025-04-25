@@ -2,13 +2,14 @@ from fastapi import FastAPI, HTTPException, Request
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
+from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://patient-santiago.onrender.com","https://servicerequest.onrender.com"],  # Permitir solo este dominio
+    allow_origins=["https://patient-santiago.onrender.com","https://servicerequest.onrender.com","https://appointment-ujmo.onrender.com"],  # Permitir solo este dominio
     allow_credentials=True,
     allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
     allow_headers=["*"],  # Permitir todos los encabezados
@@ -73,6 +74,37 @@ async def get_service_request_by_identifier(system: str, value: str):
         raise HTTPException(status_code=204, detail="La solicitud de servicio no existe")  # Código 204 si no se encuentra
     else:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  # Error interno
+
+@app.get("/appointment/{appointment_id}", response_model=dict)
+async def get_appointment_by_id(appointment_id: str):
+    status, appointment = GetAppointmentById(appointment_id)  # Call function to get appointment
+    if status == 'success':
+        return appointment  # Return appointment if found
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="Appointment not found")  # 204 if not found
+    else:
+        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")  # Internal error
+
+# Route to add a new appointment
+@app.post("/appointment", response_model=dict)
+async def add_appointment(request: Request):
+    new_appointment_dict = dict(await request.json())  # Convert JSON to dictionary
+    status, appointment_id = WriteAppointment(new_appointment_dict)  # Call function to write appointment
+    if status == 'success':
+        return {"_id": appointment_id}  # Return appointment ID if created successfully
+    else:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {status}")  # Internal error
+
+# Route to get an appointment by its identifier
+@app.get("/appointment", response_model=dict)
+async def get_appointment_by_identifier(system: str, value: str):
+    status, appointment = GetAppointmentByIdentifier(system, value)  # Call function to find appointment
+    if status == 'success':
+        return appointment  # Return appointment if found
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="Appointment not found")  # 204 if not found
+    else:
+        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")  # Internal error
 
 if __name__ == '__main__':
     import uvicorn
