@@ -3,7 +3,7 @@ import uvicorn
 from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
 from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentByIdentifier
-from app.controlador.DiagnosticReport import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
+from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -15,6 +15,8 @@ app.add_middleware(
     allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
     allow_headers=["*"],  # Permitir todos los encabezados
 )
+
+##PATIENT
 
 @app.get("/patient/{patient_id}", response_model=dict)
 async def get_patient_by_id(patient_id: str):
@@ -45,6 +47,8 @@ async def get_patient_by_identifier(system: str, value: str):
     else:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
+##SERVICE REQUEST
+
 @app.get("/servicerequest/{request_id}", response_model=dict)
 async def get_service_request_by_id(request_id: str):
     status, service_request = GetServiceRequestById(request_id)  
@@ -74,6 +78,8 @@ async def get_service_request_by_identifier(system: str, value: str):
     else:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  
 
+##APPOINTMENT
+
 @app.get("/appointment/{appointment_id}", response_model=dict)
 async def get_appointment_by_id(appointment_id: str):
     status, appointment = GetAppointmentById(appointment_id) 
@@ -102,6 +108,8 @@ async def get_appointment_by_identifier(system: str, value: str):
         raise HTTPException(status_code=204, detail="Appointment not found")
     else:
         raise HTTPException(status_code=500, detail=f"Internal server error. {status}")
+
+##DIAGNOSTIC REPORT 
 
 @app.get("/diagnosticreport/{report_id}", response_model=dict)
 async def get_diagnostic_report_by_id(report_id: str):
