@@ -3,6 +3,7 @@ import uvicorn
 from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
 from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentByIdentifier
+from app.controlador.DiagnosticReport import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -30,7 +31,7 @@ async def add_patient(request: Request):
     new_patient_dict = dict(await request.json())
     status,patient_id = WritePatient(new_patient_dict)
     if status=='success':
-        return {"_id":patient_id}  # Return patient id
+        return {"_id":patient_id}  
     else:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
 
@@ -38,7 +39,7 @@ async def add_patient(request: Request):
 async def get_patient_by_identifier(system: str, value: str):
     status,patient = GetPatientByIdentifier(system,value)
     if status=='success':
-        return patient  # Return patient
+        return patient  
     elif status=='notFound':
         raise HTTPException(status_code=204, detail="El paciente no existe")
     else:
@@ -46,65 +47,92 @@ async def get_patient_by_identifier(system: str, value: str):
 
 @app.get("/servicerequest/{request_id}", response_model=dict)
 async def get_service_request_by_id(request_id: str):
-    status, service_request = GetServiceRequestById(request_id)  # Llamar a la función que obtiene la solicitud
+    status, service_request = GetServiceRequestById(request_id)  
     if status == 'success':
-        return service_request  # Devolver la solicitud si se encuentra
+        return service_request 
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe")  # Código 204 si no se encuentra
+        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe") 
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  # Error interno
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
-# Ruta para agregar una nueva solicitud de servicio
 @app.post("/servicerequest", response_model=dict)
 async def add_service_request(request: Request):
-    new_service_request_dict = dict(await request.json())  # Convertir la solicitud JSON a un diccionario
-    status, request_id = WriteServiceRequest(new_service_request_dict)  # Llamar a la función que escribe la solicitud
+    new_service_request_dict = dict(await request.json()) 
+    status, request_id = WriteServiceRequest(new_service_request_dict)  
     if status == 'success':
-        return {"_id": request_id}  # Devolver el ID de la solicitud si se creó correctamente
+        return {"_id": request_id}  
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")  # Error interno
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}") 
 
-# Ruta para obtener una solicitud de servicio por su identificador
 @app.get("/servicerequest", response_model=dict)
 async def get_service_request_by_identifier(system: str, value: str):
-    status, service_request = GetServiceRequestByIdentifier(system, value)  # Llamar a la función que busca la solicitud
+    status, service_request = GetServiceRequestByIdentifier(system, value) 
     if status == 'success':
-        return service_request  # Devolver la solicitud si se encuentra
+        return service_request  
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe")  # Código 204 si no se encuentra
+        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe")
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  # Error interno
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  
 
 @app.get("/appointment/{appointment_id}", response_model=dict)
 async def get_appointment_by_id(appointment_id: str):
-    status, appointment = GetAppointmentById(appointment_id)  # Call function to get appointment
+    status, appointment = GetAppointmentById(appointment_id) 
     if status == 'success':
-        return appointment  # Return appointment if found
+        return appointment  
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="Appointment not found")  # 204 if not found
+        raise HTTPException(status_code=204, detail="Appointment not found")
     else:
-        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")  # Internal error
+        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")
 
-# Route to add a new appointment
 @app.post("/appointment", response_model=dict)
 async def add_appointment(request: Request):
-    new_appointment_dict = dict(await request.json())  # Convert JSON to dictionary
-    status, appointment_id = WriteAppointment(new_appointment_dict)  # Call function to write appointment
+    new_appointment_dict = dict(await request.json())  
+    status, appointment_id = WriteAppointment(new_appointment_dict) 
     if status == 'success':
-        return {"_id": appointment_id}  # Return appointment ID if created successfully
+        return {"_id": appointment_id}
     else:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {status}")  # Internal error
+        raise HTTPException(status_code=500, detail=f"Internal server error: {status}")
 
-# Route to get an appointment by its identifier
 @app.get("/appointment", response_model=dict)
 async def get_appointment_by_identifier(system: str, value: str):
-    status, appointment = GetAppointmentByIdentifier(system, value)  # Call function to find appointment
+    status, appointment = GetAppointmentByIdentifier(system, value) 
     if status == 'success':
-        return appointment  # Return appointment if found
+        return appointment  
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="Appointment not found")  # 204 if not found
+        raise HTTPException(status_code=204, detail="Appointment not found")
     else:
-        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")  # Internal error
+        raise HTTPException(status_code=500, detail=f"Internal server error. {status}")
+
+@app.get("/diagnosticreport/{report_id}", response_model=dict)
+async def get_diagnostic_report_by_id(report_id: str):
+    status, diagnostic_report = GetDiagnosticReportById(report_id)  
+    if status == 'success':
+        return diagnostic_report 
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="El informe diagnóstico no existe") 
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+
+
+@app.post("/diagnosticreport", response_model=dict)
+async def add_diagnostic_report(request: Request):
+    new_diagnostic_report_dict = dict(await request.json()) 
+    status, report_id = WriteDiagnosticReport(new_diagnostic_report_dict)  
+    if status == 'success':
+        return {"_id": report_id}  
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}") 
+
+
+@app.get("/diagnosticreport", response_model=dict)
+async def get_diagnostic_report_by_identifier(system: str, value: str):
+    status, diagnostic_report = GetDiagnosticReportByIdentifier(system, value) 
+    if status == 'success':
+        return diagnostic_report  
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="El informe diagnóstico no existe")
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 if __name__ == '__main__':
     import uvicorn
