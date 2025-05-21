@@ -13,8 +13,8 @@ def GetDiagnosticReportById(report_id: str):
             diagnostic_report["_id"] = str(diagnostic_report["_id"])
             return "success", diagnostic_report
         return "notFound", None
-    except Exception:
-        return "error", None
+    except Exception as e:
+        return f"notFound", None
 
 
 def WriteDiagnosticReport(diagnostic_report_dict: dict):
@@ -23,11 +23,12 @@ def WriteDiagnosticReport(diagnostic_report_dict: dict):
     except Exception as e:
         return f"errorValidating: {str(e)}", None
     validated_diagnostic_report_json = report.model_dump()
-    result = collection.insert_one(validated_diagnostic_report_json)
+    result = collection.insert_one(diagnostic_report_dic)
     if result:
         inserted_id = str(result.inserted_id)
         return "success", inserted_id
-    return "errorInserting", None
+    else:
+        return "errorInserting", None
 
 
 def GetDiagnosticReportByIdentifier(reportSystem, reportValue):
