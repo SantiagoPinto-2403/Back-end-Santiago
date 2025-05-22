@@ -23,7 +23,7 @@ def WriteDiagnosticReport(diagnostic_report_dict: dict):
     except Exception as e:
         return f"errorValidating: {str(e)}", None
     validated_diagnostic_report_json = report.model_dump()
-    result = collection.insert_one(validated_diagnostic_report_dic)
+    result = collection.insert_one(validated_diagnostic_report_json)
     if result:
         inserted_id = str(result.inserted_id)
         return "success", inserted_id
