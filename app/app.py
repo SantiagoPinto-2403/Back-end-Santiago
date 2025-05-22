@@ -145,47 +145,36 @@ async def get_diagnostic_report_by_identifier(system: str, value: str):
 
 ##IMAGING STUDY
 
-from connection import connect_to_mongodb
-from bson import ObjectId
-from fhir.resources.imagingstudy import ImagingStudy
-import json
-
-collection = connect_to_mongodb("RIS_DataBase", "ImagingStudy")
-
-
-def GetImagingStudyById(study_id: str):
-    try:
-        imaging_study = collection.find_one({"_id": ObjectId(study_id)})
-        if imaging_study:
-            imaging_study["_id"] = str(imaging_study["_id"])
-            return "success", imaging_study
-        return "notFound", None
-    except Exception:
-        return "error", None
+@app.get("/imagingstudy/{study_id}", response_model=dict)
+async def get_imaging_study_by_id(study_id: str):
+    status, imaging_study = GetImagingStudyById(study_id)  
+    if status == 'success':
+        return imaging_study
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="El estudio de imagen no existe") 
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 
-def WriteImagingStudy(imaging_study_dict: dict):
-    try:
-        study = ImagingStudy.model_validate(imaging_study_dict)
-    except Exception as e:
-        return f"errorValidating: {str(e)}", None
-    validated_imaging_study_json = study.model_dump()
-    result = collection.insert_one(validated_imaging_study_json)
-    if result:
-        inserted_id = str(result.inserted_id)
-        return "success", inserted_id
-    return "errorInserting", None
+@app.post("/imagingstudy", response_model=dict)
+async def add_imaging_study(request: Request):
+    new_study_dict = dict(await request.json())
+    status, study_id = WriteImagingStudy(new_study_dict)
+    if status == 'success':
+        return {"_id": study_id}
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
 
 
-def GetImagingStudyByIdentifier(studySystem, studyValue):
-    try:
-        imaging_study = collection.find_one({"identifier.system": studySystem, "identifier.value": studyValue})
-        if imaging_study:
-            imaging_study["_id"] = str(imaging_study["_id"])
-            return "success", imaging_study
-        return "notFound", None
-    except Exception as e:
-        return f"error: {str(e)}", None
+@app.get("/imagingstudy", response_model=dict)
+async def get_imaging_study_by_identifier(system: str, value: str):
+    status, imaging_study = GetImagingStudyByIdentifier(system, value)
+    if status == 'success':
+        return imaging_study
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="El estudio de imagen no existe")
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 if __name__ == '__main__':
     import uvicorn
