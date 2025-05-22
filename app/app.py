@@ -4,6 +4,7 @@ from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientBy
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
 from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentByIdentifier
 from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
+from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -141,6 +142,50 @@ async def get_diagnostic_report_by_identifier(system: str, value: str):
         raise HTTPException(status_code=204, detail="El informe diagnóstico no existe")
     else:
         raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+
+##IMAGING STUDY
+
+from connection import connect_to_mongodb
+from bson import ObjectId
+from fhir.resources.imagingstudy import ImagingStudy
+import json
+
+collection = connect_to_mongodb("RIS_DataBase", "ImagingStudy")
+
+
+def GetImagingStudyById(study_id: str):
+    try:
+        imaging_study = collection.find_one({"_id": ObjectId(study_id)})
+        if imaging_study:
+            imaging_study["_id"] = str(imaging_study["_id"])
+            return "success", imaging_study
+        return "notFound", None
+    except Exception:
+        return "error", None
+
+
+def WriteImagingStudy(imaging_study_dict: dict):
+    try:
+        study = ImagingStudy.model_validate(imaging_study_dict)
+    except Exception as e:
+        return f"errorValidating: {str(e)}", None
+    validated_imaging_study_json = study.model_dump()
+    result = collection.insert_one(validated_imaging_study_json)
+    if result:
+        inserted_id = str(result.inserted_id)
+        return "success", inserted_id
+    return "errorInserting", None
+
+
+def GetImagingStudyByIdentifier(studySystem, studyValue):
+    try:
+        imaging_study = collection.find_one({"identifier.system": studySystem, "identifier.value": studyValue})
+        if imaging_study:
+            imaging_study["_id"] = str(imaging_study["_id"])
+            return "success", imaging_study
+        return "notFound", None
+    except Exception as e:
+        return f"error: {str(e)}", None
 
 if __name__ == '__main__':
     import uvicorn
