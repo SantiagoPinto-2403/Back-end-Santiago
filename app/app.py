@@ -1,5 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, status
-from typing import Dict, Any
+from fastapi import FastAPI, HTTPException, Request
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
@@ -19,111 +18,35 @@ app.add_middleware(
 )
 
 ##PATIENT
-@app.get("/patient/{patient_id}", response_model=Dict[str, Any])
+
+@app.get("/patient/{patient_id}", response_model=dict)
 async def get_patient_by_id(patient_id: str):
-    """
-    Get patient by ID
-    Returns:
-        - 200: Patient found (returns patient data)
-        - 404: Patient not found
-        - 500: Server error
-    """
-    status_result, patient = GetPatientById(patient_id)
-    
-    if status_result == 'success':
-        return patient
-    elif status_result == 'notFound':
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
-        )
+    status,patient = GetPatientById(patient_id)
+    if status=='success':
+        return patient  # Return patient
+    elif status=='notFound':
+        raise HTTPException(status_code=204, detail="El paciente no existe")
     else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {status_result}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
-@app.post("/patient")
+@app.post("/patient", response_model=dict)
 async def add_patient(request: Request):
-    """
-    Create new patient
-    Returns:
-        - 201: Patient created successfully
-        - 409: Patient already exists
-        - 422: Validation error
-        - 500: Server error
-    """
-    try:
-        new_patient_dict = await request.json()
-        status_result, result = WritePatient(new_patient_dict)
-        
-        if status_result == 'success':
-            return JSONResponse(
-                status_code=status.HTTP_201_CREATED,
-                content={
-                    "status": "success",
-                    "patientId": result,
-                    "message": "Patient created successfully"
-                }
-            )
-        elif status_result == 'exists':
-            return JSONResponse(
-                status_code=status.HTTP_409_CONFLICT,
-                content={
-                    "status": "exists",
-                    "patientId": result,
-                    "message": "Patient already exists"
-                }
-            )
-        elif status_result == 'errorValidating':
-            return JSONResponse(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                content={
-                    "status": "error",
-                    "message": f"Validation error: {result}"
-                }
-            )
-        else:
-            return JSONResponse(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={
-                    "status": "error",
-                    "message": f"Failed to create patient: {result}"
-                }
-            )
-            
-    except Exception as e:
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "status": "error",
-                "message": f"Unexpected error: {str(e)}"
-            }
-        )
-
-@app.get("/patient", response_model=Dict[str, Any])
-async def get_patient_by_identifier(system: str, value: str):
-    """
-    Get patient by identifier
-    Returns:
-        - 200: Patient found (returns patient data)
-        - 404: Patient not found
-        - 500: Server error
-    """
-    status_result, patient = GetPatientByIdentifier(system, value)
-    
-    if status_result == 'success':
-        return patient
-    elif status_result == 'notFound':
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Patient not found"
-        )
+    new_patient_dict = dict(await request.json())
+    status,patient_id = WritePatient(new_patient_dict)
+    if status=='success':
+        return {"_id":patient_id}  
     else:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {status_result}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
+
+@app.get("/patient", response_model=dict)
+async def get_patient_by_identifier(system: str, value: str):
+    status,patient = GetPatientByIdentifier(system,value)
+    if status=='success':
+        return patient  
+    elif status=='notFound':
+        raise HTTPException(status_code=204, detail="El paciente no existe")
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 ##SERVICE REQUEST
 
