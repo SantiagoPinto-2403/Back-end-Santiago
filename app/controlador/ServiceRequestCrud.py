@@ -3,6 +3,7 @@ from bson import ObjectId
 from fhir.resources.servicerequest import ServiceRequest
 from datetime import datetime
 from typing import Optional
+from app.controlador.PatientCrud import GetPatientByIdentifier
 
 collection = connect_to_mongodb("RIS_DataBase", "ServiceRequest")
 
