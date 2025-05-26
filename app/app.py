@@ -129,36 +129,36 @@ async def get_requests_by_patient(patient_id: str):
 
 ##DIAGNOSTIC REPORT 
 
-@app.get("/diagnosticreport/{report_id}", response_model=dict)
-async def get_diagnostic_report_by_id(report_id: str):
-    status, diagnostic_report = GetDiagnosticReportById(report_id)  
+@app.post("/servicerequest")
+async def create_service_request(request: Request):
+    data = await request.json()
+    
+    # Validate required identifier
+    if not data.get('subject', {}).get('identifier'):
+        raise HTTPException(
+            status_code=400,
+            detail="Se requiere identificador del paciente (sistema + valor)"
+        )
+    
+    status, request_id = WriteServiceRequest(data)
+    
     if status == 'success':
-        return diagnostic_report 
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El informe diagnóstico no existe") 
+        return {"id": request_id}
+    elif status == 'patientNotFound':
+        raise HTTPException(404, "Paciente no encontrado con ese identificador")
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+        raise HTTPException(400, detail=status)
 
 
-@app.post("/diagnosticreport", response_model=dict)
-async def add_diagnostic_report(request: Request):
-    new_diagnostic_report_dict = dict(await request.json()) 
-    status, report_id = WriteDiagnosticReport(new_diagnostic_report_dict)  
+# Get requests by patient identifier
+@app.get("/servicerequest/patient/{system}/{value}")
+async def get_requests_by_patient(system: str, value: str):
+    status, requests = GetServiceRequestsByPatient(system, value)
+    
     if status == 'success':
-        return {"_id": report_id}  
+        return requests
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}") 
-
-
-@app.get("/diagnosticreport", response_model=dict)
-async def get_diagnostic_report_by_identifier(system: str, value: str):
-    status, diagnostic_report = GetDiagnosticReportByIdentifier(system, value) 
-    if status == 'success':
-        return diagnostic_report  
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El informe diagnóstico no existe")
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+        raise HTTPException(400, detail=status)
 
 ##IMAGING STUDY
 
