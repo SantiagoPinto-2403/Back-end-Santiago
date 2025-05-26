@@ -19,7 +19,7 @@ app.add_middleware(
 
 # PATIENT ROUTES
 
-app.get("/patient/{patient_id}")
+@app.get("/patient/{patient_id}")
 async def get_patient_by_id(patient_id: str):
     status, patient = GetPatientById(patient_id)
     if status == 'success':
