@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, status
+from typing import Dict, Any
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
@@ -18,10 +19,6 @@ app.add_middleware(
 )
 
 ##PATIENT
-
-from fastapi import HTTPException, Request, status
-from typing import Dict, Any
-
 @app.get("/patient/{patient_id}", response_model=Dict[str, Any])
 async def get_patient_by_id(patient_id: str):
     """
@@ -46,12 +43,12 @@ async def get_patient_by_id(patient_id: str):
             detail=f"Internal server error: {status_result}"
         )
 
-@app.post("/patient", response_model=Dict[str, str])
+@app.post("/patient")
 async def add_patient(request: Request):
     """
     Create new patient
     Returns:
-        - 201: Patient created (returns ID)
+        - 201: Patient created successfully
         - 409: Patient already exists
         - 422: Validation error
         - 500: Server error
@@ -61,26 +58,47 @@ async def add_patient(request: Request):
         status_result, result = WritePatient(new_patient_dict)
         
         if status_result == 'success':
-            return {"_id": result}
+            return JSONResponse(
+                status_code=status.HTTP_201_CREATED,
+                content={
+                    "status": "success",
+                    "patientId": result,
+                    "message": "Patient created successfully"
+                }
+            )
         elif status_result == 'exists':
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Patient already exists with ID: {result}"
+                content={
+                    "status": "exists",
+                    "patientId": result,
+                    "message": "Patient already exists"
+                }
             )
         elif status_result == 'errorValidating':
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Validation error: {result}"
+                content={
+                    "status": "error",
+                    "message": f"Validation error: {result}"
+                }
             )
         else:
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create patient: {result}"
+                content={
+                    "status": "error",
+                    "message": f"Failed to create patient: {result}"
+                }
             )
+            
     except Exception as e:
-        raise HTTPException(
+        return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Unexpected error: {str(e)}"
+            content={
+                "status": "error",
+                "message": f"Unexpected error: {str(e)}"
+            }
         )
 
 @app.get("/patient", response_model=Dict[str, Any])
