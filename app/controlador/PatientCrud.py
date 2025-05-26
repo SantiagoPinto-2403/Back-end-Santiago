@@ -1,8 +1,8 @@
-from connection import connect_to_mongodb
+from datetime import datetime, date
 from bson import ObjectId
 from fhir.resources.patient import Patient
-from fastapi import HTTPException
 import logging
+from connection import connect_to_mongodb
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -10,9 +10,18 @@ logger = logging.getLogger(__name__)
 
 collection = connect_to_mongodb("RIS_DataBase", "Patients")
 
+def convert_dates_to_string(obj):
+    """Recursively convert date objects to ISO format strings"""
+    if isinstance(obj, dict):
+        return {k: convert_dates_to_string(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_dates_to_string(v) for v in obj]
+    elif isinstance(obj, date):
+        return obj.isoformat()
+    return obj
+
 def setup_indexes():
     try:
-        # Create indexes with error handling
         collection.create_index(
             [("identifier.system", 1), ("identifier.value", 1)], 
             unique=True,
@@ -30,7 +39,6 @@ def setup_indexes():
     except Exception as e:
         logger.error(f"Error creating indexes: {str(e)}")
 
-# Call this when your application starts
 setup_indexes()
 
 def GetPatientById(patient_id: str):
@@ -63,9 +71,12 @@ def GetPatientByIdentifier(patientSystem: str, patientValue: str):
 
 def CheckDuplicatePatient(patient_data: dict):
     try:
+        # Convert dates to strings for MongoDB query
+        query_data = convert_dates_to_string(patient_data)
+        
         # Check by identifier
-        if patient_data.get('identifier') and len(patient_data['identifier']) > 0:
-            identifier = patient_data['identifier'][0]
+        if query_data.get('identifier') and len(query_data['identifier']) > 0:
+            identifier = query_data['identifier'][0]
             result = GetPatientByIdentifier(identifier.get('system'), identifier.get('value'))
             if result.get('status') == "success" and result.get('patient'):
                 return {
@@ -75,15 +86,15 @@ def CheckDuplicatePatient(patient_data: dict):
                 }
         
         # Check by name + birthdate
-        if (patient_data.get('name') and len(patient_data['name']) > 0 and 
-            isinstance(patient_data['name'][0], dict) and 
-            patient_data.get('birthDate')):
+        if (query_data.get('name') and len(query_data['name']) > 0 and 
+            isinstance(query_data['name'][0], dict) and 
+            query_data.get('birthDate')):
             
-            name = patient_data['name'][0]
+            name = query_data['name'][0]
             existing = collection.find_one({
                 "name.0.family": name.get('family'),
                 "name.0.given": name.get('given', [""])[0],
-                "birthDate": patient_data['birthDate']
+                "birthDate": query_data['birthDate']
             })
             if existing:
                 return {
@@ -99,7 +110,7 @@ def CheckDuplicatePatient(patient_data: dict):
 
 def WritePatient(patient_dict: dict):
     try:
-        # Validate FHIR structure
+        # First validate FHIR structure
         try:
             pat = Patient.model_validate(patient_dict)
             validated_patient = pat.model_dump()
@@ -111,8 +122,11 @@ def WritePatient(patient_dict: dict):
                 "details": str(validation_error)
             }
         
+        # Convert dates to strings for MongoDB
+        mongo_patient = convert_dates_to_string(validated_patient)
+        
         # Check for duplicates
-        duplicate_check = CheckDuplicatePatient(validated_patient)
+        duplicate_check = CheckDuplicatePatient(mongo_patient)
         if duplicate_check.get('isDuplicate'):
             return {
                 "status": "exists",
@@ -123,14 +137,13 @@ def WritePatient(patient_dict: dict):
         
         # Insert new patient
         try:
-            result = collection.insert_one(validated_patient)
+            result = collection.insert_one(mongo_patient)
             return {
                 "status": "success",
                 "insertedId": str(result.inserted_id)
             }
         except Exception as insert_error:
             if "duplicate key error" in str(insert_error).lower():
-                # Handle race condition where duplicate was inserted between check and insert
                 return {
                     "status": "exists",
                     "message": "Patient was just created by another process"
