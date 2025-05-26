@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Request
 import uvicorn
-from app.controlador.PatientCrud import GetPatientById,WritePatient,GetPatientByIdentifier
+from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
 from app.controlador.ServiceRequestCrud import GetServiceRequestById, WriteServiceRequest, GetServiceRequestByIdentifier
 from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentByIdentifier
 from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
@@ -17,36 +17,51 @@ app.add_middleware(
     allow_headers=["*"],  # Permitir todos los encabezados
 )
 
-##PATIENT
+# PATIENT ROUTES
 
-@app.get("/patient/{patient_id}", response_model=dict)
+app.get("/patient/{patient_id}")
 async def get_patient_by_id(patient_id: str):
-    status,patient = GetPatientById(patient_id)
-    if status=='success':
-        return patient  # Return patient
-    elif status=='notFound':
-        raise HTTPException(status_code=204, detail="El paciente no existe")
+    status, patient = GetPatientById(patient_id)
+    if status == 'success':
+        return patient
+    elif status == 'notFound':
+        raise HTTPException(status_code=404, detail="Patient not found")
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+        raise HTTPException(status_code=500, detail=status)
 
-@app.post("/patient", response_model=dict)
+@app.post("/patient")
 async def add_patient(request: Request):
-    new_patient_dict = dict(await request.json())
-    status,patient_id = WritePatient(new_patient_dict)
-    if status=='success':
-        return {"_id":patient_id}  
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
+    try:
+        new_patient_dict = await request.json()
+        status, patient_id = WritePatient(new_patient_dict)
+        
+        if status == 'success':
+            return {"status": "success", "patient_id": patient_id}
+        elif status == 'patientExists':
+            return {"status": "exists", "existing_id": patient_id}
+        else:
+            raise HTTPException(status_code=400, detail=status)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/patient", response_model=dict)
+@app.get("/patient")
 async def get_patient_by_identifier(system: str, value: str):
-    status,patient = GetPatientByIdentifier(system,value)
-    if status=='success':
-        return patient  
-    elif status=='notFound':
-        raise HTTPException(status_code=204, detail="El paciente no existe")
+    status, patient = GetPatientByIdentifier(system, value)
+    if status == 'success':
+        return patient
+    elif status == 'notFound':
+        raise HTTPException(status_code=404, detail="Patient not found")
     else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+        raise HTTPException(status_code=500, detail=status)
+
+@app.post("/patient/check-duplicate")
+async def check_duplicate_patient(request: Request):
+    try:
+        patient_data = await request.json()
+        result = CheckDuplicatePatient(patient_data)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 ##SERVICE REQUEST
 
