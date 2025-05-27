@@ -1,11 +1,12 @@
 from fastapi import FastAPI, HTTPException, Request
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
-from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient
-from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentsByServiceRequest
+from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient, GetServiceRequestByIdentifier, GetServiceRequestById
+from app.controlador.AppointmentCrud import WriteAppointment, GetAppointmentById
 from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
 from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 
 app = FastAPI()
 
@@ -65,69 +66,6 @@ async def check_duplicate_patient(request: Request):
 
 # SERVICE REQUEST ROUTES
 
-@app.get("/servicerequest/{request_id}")
-async def get_service_request_by_id(request_id: str):
-    status, service_request = GetServiceRequestById(request_id)
-    if status == 'success':
-        return service_request
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    raise HTTPException(status_code=400, detail=status)
-
-@app.get("/servicerequest/patient/{patient_id}")
-async def get_requests_by_patient(patient_id: str):
-    status, requests = GetServiceRequestsByPatient(patient_id)
-    if status == 'success':
-        return requests
-    raise HTTPException(status_code=400, detail=status)
-
-@app.post("/appointment")
-async def create_appointment(request: Request):
-    data = await request.json()
-    status, appointment_id = WriteAppointment(data)
-    if status == 'success':
-        return {"id": appointment_id}
-    raise HTTPException(status_code=400, detail=status)
-
-@app.get("/appointment/{appointment_id}")
-async def get_appointment_by_id(appointment_id: str):
-    status, appointment = GetAppointmentById(appointment_id)
-    if status == 'success':
-        return appointment
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Cita no encontrada")
-    raise HTTPException(status_code=400, detail=status) 
-
-# APPOINTMENT ROUTES
-
-@app.post("/appointment")
-async def create_appointment(request: Request):
-    data = await request.json()
-    
-    # Simple validation
-    if not data.get('basedOn', {}).get('reference', '').startswith('ServiceRequest/'):
-        raise HTTPException(400, "Se requiere referencia a ServiceRequest válida")
-    
-    status, appt_id = WriteAppointment(data)
-    
-    if status == 'success':
-        return {"id": appt_id}
-    elif status == 'missingServiceRequest':
-        raise HTTPException(400, "No se especificó ServiceRequest")
-    else:
-        raise HTTPException(400, detail=status)
-
-@app.get("/appointment/service-request/{service_request_id}")
-async def get_appointments_by_service_request(service_request_id: str):
-    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
-    
-    if status == 'success':
-        return appointments
-    else:
-        raise HTTPException(400, detail=status)
-
-##DIAGNOSTIC REPORT 
-
 @app.post("/servicerequest")
 async def create_service_request(request: Request):
     data = await request.json()
@@ -148,8 +86,6 @@ async def create_service_request(request: Request):
     else:
         raise HTTPException(400, detail=status)
 
-
-# Get requests by patient identifier
 @app.get("/servicerequest/patient/{system}/{value}")
 async def get_requests_by_patient(system: str, value: str):
     status, requests = GetServiceRequestsByPatient(system, value)
@@ -159,38 +95,64 @@ async def get_requests_by_patient(system: str, value: str):
     else:
         raise HTTPException(400, detail=status)
 
+# Add these endpoints if not already present
+@app.get("/servicerequest/{request_id}")
+async def get_service_request(request_id: str):
+    status, request = GetServiceRequestById(request_id)
+    if status == 'success':
+        return request
+    raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+@app.get("/servicerequest")
+async def get_service_request_by_identifier(system: str, value: str):
+    status, request = GetServiceRequestByIdentifier(system, value)
+    if status == 'success':
+        return request
+    raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+
+# APPOINTMENT ROUTES
+
+@app.post("/appointment")
+async def create_appointment(appointment_data: dict):
+    # Validate required fields
+    if not appointment_data.get('basedOn'):
+        raise HTTPException(400, "Se requiere referencia a ServiceRequest")
+    
+    # Auto-fill missing required FHIR fields
+    appointment_data.setdefault('status', 'booked')
+    appointment_data.setdefault('participant', [{
+        'actor': {'reference': 'Practitioner/unknown'},
+        'status': 'accepted'
+    }])
+    
+    # Validate dates
+    try:
+        if 'start' in appointment_data:
+            datetime.fromisoformat(appointment_data['start'])
+        if 'end' in appointment_data:
+            datetime.fromisoformat(appointment_data['end'])
+    except ValueError:
+        raise HTTPException(400, "Formato de fecha inválido")
+    
+    # Save to database
+    status, appt_id = WriteAppointment(appointment_data)
+    
+    if status == 'success':
+        return {"id": appt_id}
+    elif status == 'appointmentAlreadyExists':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe una cita para esta solicitud (ID: {appt_id})"
+        )
+    elif status == 'serviceRequestNotFound':
+        raise HTTPException(400, "Solicitud de servicio no encontrada")
+    else:
+        raise HTTPException(400, detail=status)
+
+# DIAGNOSTIC REPORT ROUTES 
+
 ##IMAGING STUDY
 
-@app.get("/imagingstudy/{study_id}", response_model=dict)
-async def get_imaging_study_by_id(study_id: str):
-    status, imaging_study = GetImagingStudyById(study_id)  
-    if status == 'success':
-        return imaging_study
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El estudio de imagen no existe") 
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
-
-
-@app.post("/imagingstudy", response_model=dict)
-async def add_imaging_study(request: Request):
-    new_study_dict = dict(await request.json())
-    status, study_id = WriteImagingStudy(new_study_dict)
-    if status == 'success':
-        return {"_id": study_id}
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
-
-
-@app.get("/imagingstudy", response_model=dict)
-async def get_imaging_study_by_identifier(system: str, value: str):
-    status, imaging_study = GetImagingStudyByIdentifier(system, value)
-    if status == 'success':
-        return imaging_study
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El estudio de imagen no existe")
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 if __name__ == '__main__':
     import uvicorn
