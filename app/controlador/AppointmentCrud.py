@@ -9,11 +9,26 @@ collection = connect_to_mongodb("RIS_DataBase", "Appointments")
 
 def GetAppointmentById(appointment_id: str):
     try:
+        # First check if it's a valid ObjectId
+        if not ObjectId.is_valid(appointment_id):
+            return "invalidIdFormat", None
+            
         appointment = collection.find_one({"_id": ObjectId(appointment_id)})
-        if appointment:
-            appointment["_id"] = str(appointment["_id"])
-            return "success", appointment
-        return "notFound", None
+        
+        if not appointment:
+            return "notFound", None
+            
+        # Convert ObjectId to string for JSON serialization
+        appointment["_id"] = str(appointment["_id"])
+        
+        # Ensure basedOn reference is properly formatted if it exists
+        if 'basedOn' in appointment and isinstance(appointment['basedOn'], list):
+            for ref in appointment['basedOn']:
+                if 'reference' in ref and not ref['reference'].startswith('ServiceRequest/'):
+                    ref['reference'] = f"ServiceRequest/{ref['reference'].split('/')[-1]}"
+        
+        return "success", appointment
+        
     except Exception as e:
         return f"error: {str(e)}", None
 

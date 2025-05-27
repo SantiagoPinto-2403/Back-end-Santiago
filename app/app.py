@@ -113,6 +113,16 @@ async def get_service_request_by_identifier(system: str, value: str):
 
 # APPOINTMENT ROUTES
 
+@app.get("/appointment/{appointment_id}")
+async def get_appointment(appointment_id: str):
+    status, appointment = GetAppointmentById(appointment_id)
+    if status == 'success':
+        return appointment
+    elif status == 'notFound':
+        raise HTTPException(404, detail="Appointment not found")
+    else:
+        raise HTTPException(400, detail=status)
+
 @app.post("/appointment")
 async def create_appointment(appointment_data: dict):
     # Validate required fields
