@@ -113,41 +113,88 @@ async def get_service_request_by_identifier(system: str, value: str):
 # APPOINTMENT ROUTES
 
 @app.post("/appointment")
-async def create_appointment(appointment_data: dict):
-    # Validate required fields
-    if not appointment_data.get('basedOn'):
-        raise HTTPException(400, "Se requiere referencia a ServiceRequest")
-    
-    # Auto-fill missing required FHIR fields
-    appointment_data.setdefault('status', 'booked')
-    appointment_data.setdefault('participant', [{
-        'actor': {'reference': 'Practitioner/unknown'},
-        'status': 'accepted'
-    }])
-    
-    # Validate dates
+async def create_appointment(request: Request):
     try:
-        if 'start' in appointment_data:
-            datetime.fromisoformat(appointment_data['start'])
-        if 'end' in appointment_data:
-            datetime.fromisoformat(appointment_data['end'])
-    except ValueError:
-        raise HTTPException(400, "Formato de fecha inválido")
-    
-    # Save to database
-    status, appt_id = WriteAppointment(appointment_data)
+        appointment_data = await request.json()
+        
+        # Validate required fields
+        if not appointment_data.get('basedOn'):
+            raise HTTPException(
+                status_code=422,
+                detail="Appointment must reference a ServiceRequest"
+            )
+        
+        # Auto-fill missing required FHIR fields with defaults
+        appointment_data.setdefault('status', 'booked')
+        appointment_data.setdefault('participant', [{
+            'actor': {'reference': 'Practitioner/unknown'},
+            'status': 'accepted'
+        }])
+        
+        # Save to database
+        status, result = WriteAppointment(appointment_data)
+        
+        if status == 'success':
+            return JSONResponse(
+                status_code=201,
+                content={"id": result}
+            )
+        elif status == 'appointmentAlreadyExists':
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": "Appointment already exists for this ServiceRequest",
+                    "existing_appointment_id": result.get('_id')
+                }
+            )
+        elif status == 'serviceRequestNotFound':
+            raise HTTPException(
+                status_code=404,
+                detail="Referenced ServiceRequest not found"
+            )
+        elif status == 'serviceRequestNotActive':
+            raise HTTPException(
+                status_code=400,
+                detail="Referenced ServiceRequest is not in an active state"
+            )
+        elif status == 'invalidAppointmentDuration':
+            raise HTTPException(
+                status_code=400,
+                detail="Appointment end time must be after start time"
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=status
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error: {str(e)}"
+        )
+
+@app.get("/appointment/service-request/{service_request_id}")
+async def get_appointment_for_service_request(service_request_id: str):
+    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
     
     if status == 'success':
-        return {"id": appt_id}
-    elif status == 'appointmentAlreadyExists':
+        if not appointments:  # Return 404 if no appointments exist
+            raise HTTPException(
+                status_code=404,
+                detail="No appointments found for this ServiceRequest"
+            )
+        return appointments
+    elif status == 'invalidIdFormat':
         raise HTTPException(
             status_code=400,
-            detail=f"Ya existe una cita para esta solicitud (ID: {appt_id})"
+            detail="Invalid ServiceRequest ID format"
         )
-    elif status == 'serviceRequestNotFound':
-        raise HTTPException(400, "Solicitud de servicio no encontrada")
     else:
-        raise HTTPException(400, detail=status)
+        raise HTTPException(
+            status_code=500,
+            detail=status
+        )
 
 # DIAGNOSTIC REPORT ROUTES 
 
