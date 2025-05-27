@@ -200,25 +200,40 @@ async def create_appointment(appointment: AppointmentCreate):
                 detail=f"Appointment already exists: {str(existing_appt['_id'])}"
             )
 
-        # Validate dates (use only the date part)
+        # Validate dates (updated for date-only format)
         try:
-            start_dt = datetime.fromisoformat(appointment.start).date()
-            end_dt = datetime.fromisoformat(appointment.end).date()
-            if end_dt < start_dt:
+            # Handle both date-only (YYYY-MM-DD) and datetime strings
+            if isinstance(appointment.start, str):
+                if len(appointment.start) == 10:  # Date-only format
+                    start_date = date.fromisoformat(appointment.start)
+                    appointment.start = start_date.isoformat()
+                else:  # Datetime format
+                    start_dt = datetime.fromisoformat(appointment.start)
+                    appointment.start = start_dt.date().isoformat()  # Convert to date-only
+            
+            if isinstance(appointment.end, str):
+                if len(appointment.end) == 10:  # Date-only format
+                    end_date = date.fromisoformat(appointment.end)
+                    appointment.end = end_date.isoformat()
+                else:  # Datetime format
+                    end_dt = datetime.fromisoformat(appointment.end)
+                    appointment.end = end_dt.date().isoformat()  # Convert to date-only
+
+            # Ensure start and end are the same for date-only appointments
+            if appointment.start != appointment.end:
                 raise HTTPException(
                     status_code=422,
-                    detail="Appointment end date must be after or equal to start date"
+                    detail="For date-only appointments, start and end dates must be the same"
                 )
+
         except ValueError:
             raise HTTPException(
                 status_code=422,
-                detail="Invalid date format, expected YYYY-MM-DD"
+                detail="Invalid date format (expected YYYY-MM-DD)"
             )
 
         # Create the appointment
         appointment_dict = appointment.dict()
-        appointment_dict["start"] = start_dt.isoformat()
-        appointment_dict["end"] = end_dt.isoformat()
         result = collection.insert_one(appointment_dict)
         
         return {"id": str(result.inserted_id)}
@@ -231,7 +246,6 @@ async def create_appointment(appointment: AppointmentCreate):
             status_code=500,
             detail="Internal server error"
         )
-
 
 # DIAGNOSTIC REPORT ROUTES 
 
