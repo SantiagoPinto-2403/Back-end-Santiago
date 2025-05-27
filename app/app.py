@@ -199,23 +199,25 @@ async def create_appointment(appointment: AppointmentCreate):
                 detail=f"Appointment already exists: {str(existing_appt['_id'])}"
             )
 
-        # Validate dates
+        # Validate dates (use only the date part)
         try:
-            start_dt = datetime.fromisoformat(appointment.start)
-            end_dt = datetime.fromisoformat(appointment.end)
-            if end_dt <= start_dt:
+            start_dt = datetime.fromisoformat(appointment.start).date()
+            end_dt = datetime.fromisoformat(appointment.end).date()
+            if end_dt < start_dt:
                 raise HTTPException(
                     status_code=422,
-                    detail="Appointment end time must be after start time"
+                    detail="Appointment end date must be after or equal to start date"
                 )
         except ValueError:
             raise HTTPException(
                 status_code=422,
-                detail="Invalid date format"
+                detail="Invalid date format, expected YYYY-MM-DD"
             )
 
         # Create the appointment
         appointment_dict = appointment.dict()
+        appointment_dict["start"] = start_dt.isoformat()
+        appointment_dict["end"] = end_dt.isoformat()
         result = collection.insert_one(appointment_dict)
         
         return {"id": str(result.inserted_id)}
@@ -228,6 +230,7 @@ async def create_appointment(appointment: AppointmentCreate):
             status_code=500,
             detail="Internal server error"
         )
+
 
 # DIAGNOSTIC REPORT ROUTES 
 
