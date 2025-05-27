@@ -135,7 +135,7 @@ async def create_appointment(request: Request):
         }])
         
         # Save to database
-        status, result = AppointmentCrud.WriteAppointment(appointment_data)
+        status, result = WriteAppointment(appointment_data)
         
         if status == 'success':
             return JSONResponse(
