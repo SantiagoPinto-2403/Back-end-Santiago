@@ -117,6 +117,23 @@ async def get_service_request_by_identifier(system: str, value: str):
 
 # APPOINTMENT ROUTES
 
+@app.post("/appointment")
+async def create_appointment(request: Request):
+    data = await request.json()
+    
+    # Simple validation
+    if not data.get('basedOn', {}).get('reference', '').startswith('ServiceRequest/'):
+        raise HTTPException(400, "Se requiere referencia a ServiceRequest válida")
+    
+    status, appt_id = WriteAppointment(data)
+    
+    if status == 'success':
+        return {"id": appt_id}
+    elif status == 'missingServiceRequest':
+        raise HTTPException(400, "No se especificó ServiceRequest")
+    else:
+        raise HTTPException(400, detail=status)
+
 @app.get("/appointment/service-request/{service_request_id}")
 async def get_appointments_by_service_request(service_request_id: str):
     status, appointments = GetAppointmentsByServiceRequest(service_request_id)
@@ -125,55 +142,6 @@ async def get_appointments_by_service_request(service_request_id: str):
         return appointments
     else:
         raise HTTPException(400, detail=status)
-
-@app.post("/appointment")
-async def create_appointment(request: Request):
-    try:
-        data = await request.json()
-        
-        # Required field validation
-        if not data.get('basedOn') or not isinstance(data['basedOn'], list):
-            raise HTTPException(400, "Se requiere al menos una referencia ServiceRequest")
-        
-        # Verify ServiceRequest exists
-        sr_ref = data['basedOn'][0].get('reference', '')
-        if not sr_ref.startswith('ServiceRequest/'):
-            raise HTTPException(400, "Referencia ServiceRequest inválida")
-        
-        sr_id = sr_ref.split('/')[1]
-        sr_status, _ = GetServiceRequestById(sr_id)
-        if sr_status != 'success':
-            raise HTTPException(404, "ServiceRequest no encontrado")
-        
-        # Set default FHIR fields if missing
-        data.setdefault('status', 'booked')
-        data.setdefault('resourceType', 'Appointment')
-        data.setdefault('participant', [{
-            'actor': {'reference': 'Practitioner/unknown'},
-            'status': 'accepted'
-        }])
-        
-        # Validate dates
-        for date_field in ['start', 'end']:
-            if date_field in data and not is_valid_iso_date(data[date_field]):
-                raise HTTPException(400, f"Formato de fecha {date_field} inválido")
-        
-        # Save to database
-        status, appt_id = WriteAppointment(data)
-        if status == 'success':
-            return JSONResponse({"id": appt_id}, status_code=201)
-        
-        raise HTTPException(400, detail=status)
-    
-    except json.JSONDecodeError:
-        raise HTTPException(400, "Cuerpo de solicitud JSON inválido")
-
-def is_valid_iso_date(date_str):
-    try:
-        datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-        return True
-    except ValueError:
-        return False
 
 # DIAGNOSTIC REPORT ROUTES 
 
