@@ -173,7 +173,7 @@ async def get_appointment_for_service_request(service_request_id: str):
             detail="Invalid service request ID"
         )
     
-    status, appointments = AppointmentCrud.GetAppointmentsByServiceRequest(service_request_id)
+    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
     
     if status == 'success':
         if not appointments:
