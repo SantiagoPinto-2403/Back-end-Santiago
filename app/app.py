@@ -167,22 +167,38 @@ async def create_appointment(request: Request):
 
 @app.get("/appointment/service-request/{service_request_id}")
 async def get_appointment_for_service_request(service_request_id: str):
-    if service_request_id == "undefined":
+    try:
+        if not service_request_id or service_request_id.lower() == "undefined":
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid service request ID"
+            )
+        
+        status, appointments = GetAppointmentsByServiceRequest(service_request_id)
+        
+        if status == 'success':
+            if not appointments:
+                return JSONResponse(
+                    status_code=200,
+                    content=[]
+                )
+            return appointments
+        elif status == 'invalidIdFormat':
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid service request ID format"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=status.split(':')[-1].strip() or "Error fetching appointments"
+            )
+            
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid service request ID"
+            status_code=500,
+            detail=f"Server error: {str(e)}"
         )
-    
-    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
-    
-    if status == 'success':
-        if not appointments:
-            raise HTTPException(status_code=404, detail="No appointments found")
-        return appointments
-    elif status == 'invalidIdFormat':
-        raise HTTPException(status_code=400, detail="Invalid ID format")
-    else:
-        raise HTTPException(status_code=500, detail=status)
 
 
 # DIAGNOSTIC REPORT ROUTES 

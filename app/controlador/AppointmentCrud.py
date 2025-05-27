@@ -80,16 +80,30 @@ def WriteAppointment(appointment_dict: dict):
 
 def GetAppointmentsByServiceRequest(service_request_id: str):
     try:
-        if not ObjectId.is_valid(service_request_id):
+        if not service_request_id or service_request_id == "undefined":
             return "invalidIdFormat", None
             
+        # First try direct lookup by ID reference
         appointments = list(collection.find({
             "basedOn.reference": f"ServiceRequest/{service_request_id}"
         }))
         
+        # If no results, try alternative reference formats
+        if not appointments:
+            appointments = list(collection.find({
+                "$or": [
+                    {"basedOn.reference": service_request_id},  # Full URL format
+                    {"basedOn.reference": f"ServiceRequest/{service_request_id}"},
+                    {"basedOn.reference": {"$regex": f".*{service_request_id}$"}}
+                ]
+            }))
+        
+        # Convert ObjectId to string
         for appt in appointments:
             appt["_id"] = str(appt["_id"])
             
         return "success", appointments
+        
     except Exception as e:
+        print(f"Error getting appointments: {str(e)}")  # Log the error
         return f"error: {str(e)}", None
