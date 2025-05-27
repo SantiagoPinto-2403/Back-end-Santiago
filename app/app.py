@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, APIRouter, Query
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
 from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient, GetServiceRequestByIdentifier, GetServiceRequestById
@@ -7,6 +7,7 @@ from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteD
 from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+from typing import Optional
 
 app = FastAPI()
 
@@ -151,8 +152,67 @@ async def create_appointment(appointment_data: dict):
 
 # DIAGNOSTIC REPORT ROUTES 
 
-##IMAGING STUDY
+# IMAGING STUDY ROUTES
 
+@router.post("/")
+async def create_imaging_study(study_data: dict):
+    """Create a new ImagingStudy with validation"""
+    status, result = WriteImagingStudy(study_data)
+    
+    if status == 'success':
+        return {"id": result}
+    elif status.startswith('errorValidating'):
+        raise HTTPException(status_code=422, detail=status)
+    elif status == 'errorInserting':
+        raise HTTPException(status_code=500, detail="Failed to create imaging study")
+    else:
+        raise HTTPException(status_code=400, detail=status)
+
+@router.get("/{study_id}")
+async def get_imaging_study_by_id(study_id: str):
+    """Get an ImagingStudy by ID"""
+    status, study = GetImagingStudyById(study_id)
+    
+    if status == 'success':
+        return study
+    elif status == 'notFound':
+        raise HTTPException(status_code=404, detail="Imaging study not found")
+    else:
+        raise HTTPException(status_code=500, detail=status)
+
+@router.get("/")
+async def get_imaging_study_by_identifier(
+    system: Optional[str] = Query(None),
+    value: Optional[str] = Query(None)
+):
+    """Get ImagingStudy by identifier (requires both system and value)"""
+    if not (system and value):
+        raise HTTPException(
+            status_code=400,
+            detail="Both system and value parameters are required"
+        )
+    
+    status, study = GetImagingStudyByIdentifier(system, value)
+    
+    if status == 'success':
+        return study
+    elif status == 'notFound':
+        raise HTTPException(status_code=404, detail="Imaging study not found")
+    else:
+        raise HTTPException(status_code=500, detail=status)
+
+@router.get("/by-appointment/{appointment_id}")
+async def get_imaging_study_by_appointment(appointment_id: str):
+    """Get ImagingStudy by appointment reference"""
+    # This would require a new CRUD function - see note below
+    status, study = GetImagingStudyByAppointment(appointment_id)
+    
+    if status == 'success':
+        return study
+    elif status == 'notFound':
+        raise HTTPException(status_code=404, detail="No imaging study found for this appointment")
+    else:
+        raise HTTPException(status_code=500, detail=status)
 
 if __name__ == '__main__':
     import uvicorn
