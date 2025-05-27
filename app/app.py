@@ -65,21 +65,44 @@ async def check_duplicate_patient(request: Request):
 
 # SERVICE REQUEST ROUTES
 
-@app.get("/servicerequest/{request_id}")
-async def get_service_request_by_id(request_id: str):
-    status, service_request = GetServiceRequestById(request_id)
+@app.post("/servicerequest")
+async def create_service_request(request: Request):
+    data = await request.json()
+    
+    # Validate required identifier
+    if not data.get('subject', {}).get('identifier'):
+        raise HTTPException(
+            status_code=400,
+            detail="Se requiere identificador del paciente (sistema + valor)"
+        )
+    
+    status, request_id = WriteServiceRequest(data)
+    
     if status == 'success':
-        return service_request
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    raise HTTPException(status_code=400, detail=status)
+        return {"id": request_id}
+    elif status == 'patientNotFound':
+        raise HTTPException(404, "Paciente no encontrado con ese identificador")
+    else:
+        raise HTTPException(400, detail=status)
 
-@app.get("/servicerequest/patient/{patient_id}")
-async def get_requests_by_patient(patient_id: str):
-    status, requests = GetServiceRequestsByPatient(patient_id)
+@app.get("/servicerequest/patient/{system}/{value}")
+async def get_requests_by_patient(system: str, value: str):
+    status, requests = GetServiceRequestsByPatient(system, value)
+    
     if status == 'success':
         return requests
-    raise HTTPException(status_code=400, detail=status)
+    else:
+        raise HTTPException(400, detail=status)
+
+@app.get("/servicerequest/{request_id}", response_model=dict)
+async def get_service_request_by_id(request_id: str):
+    status, service_request = GetServiceRequestById(request_id)  
+    if status == 'success':
+        return service_request 
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe") 
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 # APPOINTMENT ROUTES
 
@@ -109,71 +132,10 @@ async def get_appointments_by_service_request(service_request_id: str):
     else:
         raise HTTPException(400, detail=status)
 
-##DIAGNOSTIC REPORT 
-
-@app.post("/servicerequest")
-async def create_service_request(request: Request):
-    data = await request.json()
-    
-    # Validate required identifier
-    if not data.get('subject', {}).get('identifier'):
-        raise HTTPException(
-            status_code=400,
-            detail="Se requiere identificador del paciente (sistema + valor)"
-        )
-    
-    status, request_id = WriteServiceRequest(data)
-    
-    if status == 'success':
-        return {"id": request_id}
-    elif status == 'patientNotFound':
-        raise HTTPException(404, "Paciente no encontrado con ese identificador")
-    else:
-        raise HTTPException(400, detail=status)
-
-
-# Get requests by patient identifier
-@app.get("/servicerequest/patient/{system}/{value}")
-async def get_requests_by_patient(system: str, value: str):
-    status, requests = GetServiceRequestsByPatient(system, value)
-    
-    if status == 'success':
-        return requests
-    else:
-        raise HTTPException(400, detail=status)
+# DIAGNOSTIC REPORT ROUTES 
 
 ##IMAGING STUDY
 
-@app.get("/imagingstudy/{study_id}", response_model=dict)
-async def get_imaging_study_by_id(study_id: str):
-    status, imaging_study = GetImagingStudyById(study_id)  
-    if status == 'success':
-        return imaging_study
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El estudio de imagen no existe") 
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
-
-
-@app.post("/imagingstudy", response_model=dict)
-async def add_imaging_study(request: Request):
-    new_study_dict = dict(await request.json())
-    status, study_id = WriteImagingStudy(new_study_dict)
-    if status == 'success':
-        return {"_id": study_id}
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}")
-
-
-@app.get("/imagingstudy", response_model=dict)
-async def get_imaging_study_by_identifier(system: str, value: str):
-    status, imaging_study = GetImagingStudyByIdentifier(system, value)
-    if status == 'success':
-        return imaging_study
-    elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="El estudio de imagen no existe")
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 if __name__ == '__main__':
     import uvicorn
