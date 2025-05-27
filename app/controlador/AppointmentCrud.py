@@ -1,3 +1,4 @@
+from connection import connect_to_mongodb
 from bson import ObjectId
 from datetime import datetime
 from pymongo import ReturnDocument
