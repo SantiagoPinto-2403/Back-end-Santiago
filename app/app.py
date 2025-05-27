@@ -65,34 +65,38 @@ async def check_duplicate_patient(request: Request):
 
 ##SERVICE REQUEST
 
-@app.get("/servicerequest/{request_id}", response_model=dict)
+@app.get("/servicerequest/{request_id}")
 async def get_service_request_by_id(request_id: str):
-    status, service_request = GetServiceRequestById(request_id)  
+    status, service_request = GetServiceRequestById(request_id)
     if status == 'success':
-        return service_request 
+        return service_request
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe") 
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
+        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+    raise HTTPException(status_code=400, detail=status)
 
-@app.post("/servicerequest", response_model=dict)
-async def add_service_request(request: Request):
-    new_service_request_dict = dict(await request.json()) 
-    status, request_id = WriteServiceRequest(new_service_request_dict)  
+@app.get("/servicerequest/patient/{patient_id}")
+async def get_requests_by_patient(patient_id: str):
+    status, requests = GetServiceRequestsByPatient(patient_id)
     if status == 'success':
-        return {"_id": request_id}  
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor: {status}") 
+        return requests
+    raise HTTPException(status_code=400, detail=status)
 
-@app.get("/servicerequest", response_model=dict)
-async def get_service_request_by_identifier(system: str, value: str):
-    status, service_request = GetServiceRequestByIdentifier(system, value) 
+@app.post("/appointment")
+async def create_appointment(request: Request):
+    data = await request.json()
+    status, appointment_id = WriteAppointment(data)
     if status == 'success':
-        return service_request  
+        return {"id": appointment_id}
+    raise HTTPException(status_code=400, detail=status)
+
+@app.get("/appointment/{appointment_id}")
+async def get_appointment_by_id(appointment_id: str):
+    status, appointment = GetAppointmentById(appointment_id)
+    if status == 'success':
+        return appointment
     elif status == 'notFound':
-        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe")
-    else:
-        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")  
+        raise HTTPException(status_code=404, detail="Cita no encontrada")
+    raise HTTPException(status_code=400, detail=status) 
 
 ##APPOINTMENT
 
