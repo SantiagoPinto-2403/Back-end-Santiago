@@ -7,6 +7,7 @@ from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteD
 from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier, SearchImagingStudies, UpdateImagingStudy
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+from typing import Optional
 
 app = FastAPI()
 
