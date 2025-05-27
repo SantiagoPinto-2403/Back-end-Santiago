@@ -3,6 +3,8 @@ from datetime import datetime
 from pymongo import ReturnDocument
 from app.controlador.ServiceRequestCrud import GetServiceRequestById
 
+collection = connect_to_mongodb("RIS_DataBase", "Appointments")
+
 def GetAppointmentsByServiceRequest(service_request_id: str):
     try:
         if not service_request_id or not ObjectId.is_valid(service_request_id):
