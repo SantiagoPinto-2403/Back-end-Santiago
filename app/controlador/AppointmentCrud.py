@@ -35,44 +35,20 @@ def GetAppointmentsByServiceRequest(service_request_id: str):
 
 def WriteAppointment(appointment_dict: dict):
     try:
-        # Validate service request reference
-        if not appointment_dict.get('basedOn') or not isinstance(appointment_dict['basedOn'], list):
-            return "invalidServiceRequestReference", None
-            
-        sr_reference = appointment_dict['basedOn'][0].get('reference', '')
+        # Validate ServiceRequest exists
+        sr_reference = appointment_dict.get('basedOn', [{}])[0].get('reference', '')
         if not sr_reference.startswith('ServiceRequest/'):
-            return "invalidServiceRequestReference", None
+            return "invalidServiceRequest", None
             
         sr_id = sr_reference.split('/')[1]
-        if not ObjectId.is_valid(sr_id):
-            return "invalidServiceRequestId", None
-        
-        # Check service request exists
-        sr_status, sr_data = GetServiceRequestById(sr_id)
+        sr_status, _ = GetServiceRequestById(sr_id)
         if sr_status != 'success':
             return "serviceRequestNotFound", None
-            
-        # Check for existing appointment (with transaction)
-        with collection.database.client.start_session() as session:
-            with session.start_transaction():
-                existing = collection.find_one(
-                    {"basedOn.reference": f"ServiceRequest/{sr_id}"},
-                    session=session
-                )
-                
-                if existing:
-                    return "appointmentAlreadyExists", str(existing['_id'])
-                
-                # Validate FHIR resource
-                appt = Appointment.model_validate(appointment_dict)
-                result = collection.insert_one(
-                    appt.model_dump(),
-                    session=session
-                )
-                
-                session.commit_transaction()
-                return "success", str(result.inserted_id)
-                
+        
+        # FHIR validation
+        appt = Appointment.model_validate(appointment_dict)
+        result = collection.insert_one(appt.model_dump())
+        
+        return "success", str(result.inserted_id)
     except Exception as e:
-        print(f"DB Error in WriteAppointment: {str(e)}")
         return f"error: {str(e)}", None

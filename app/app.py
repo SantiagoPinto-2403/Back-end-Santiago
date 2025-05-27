@@ -158,94 +158,33 @@ class AppointmentCreate(BaseModel):
     participant: List[AppointmentParticipant]
 
 @app.post("/appointment")
-async def create_appointment(appointment: AppointmentCreate):
+async def create_appointment(appointment_data: dict):
+    # Validate required fields
+    if not appointment_data.get('basedOn'):
+        raise HTTPException(400, "Se requiere referencia a ServiceRequest")
+    
+    # Auto-fill missing required FHIR fields
+    appointment_data.setdefault('status', 'booked')
+    appointment_data.setdefault('participant', [{
+        'actor': {'reference': 'Practitioner/unknown'},
+        'status': 'accepted'
+    }])
+    
+    # Validate dates
     try:
-        # Validate service request reference
-        if not appointment.basedOn or not isinstance(appointment.basedOn, list):
-            raise HTTPException(
-                status_code=422,
-                detail="Appointment must reference a ServiceRequest"
-            )
-
-        sr_reference = appointment.basedOn[0].get('reference', '')
-        if not sr_reference.startswith('ServiceRequest/'):
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid ServiceRequest reference format"
-            )
-
-        sr_id = sr_reference.split('/')[1]
-        if not ObjectId.is_valid(sr_id):
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid ServiceRequest ID format"
-            )
-
-        # Verify service request exists
-        from app.controlador.ServiceRequestCrud import GetServiceRequestById
-        sr_status, sr_data = GetServiceRequestById(sr_id)
-        if sr_status != 'success':
-            raise HTTPException(
-                status_code=404,
-                detail="Referenced ServiceRequest not found"
-            )
-
-        # Check for existing appointment
-        existing_appt = collection.find_one({
-            "basedOn.reference": f"ServiceRequest/{sr_id}"
-        })
-        if existing_appt:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Appointment already exists: {str(existing_appt['_id'])}"
-            )
-
-        # Validate dates (updated for date-only format)
-        try:
-            # Handle both date-only (YYYY-MM-DD) and datetime strings
-            if isinstance(appointment.start, str):
-                if len(appointment.start) == 10:  # Date-only format
-                    start_date = date.fromisoformat(appointment.start)
-                    appointment.start = start_date.isoformat()
-                else:  # Datetime format
-                    start_dt = datetime.fromisoformat(appointment.start)
-                    appointment.start = start_dt.date().isoformat()  # Convert to date-only
-            
-            if isinstance(appointment.end, str):
-                if len(appointment.end) == 10:  # Date-only format
-                    end_date = date.fromisoformat(appointment.end)
-                    appointment.end = end_date.isoformat()
-                else:  # Datetime format
-                    end_dt = datetime.fromisoformat(appointment.end)
-                    appointment.end = end_dt.date().isoformat()  # Convert to date-only
-
-            # Ensure start and end are the same for date-only appointments
-            if appointment.start != appointment.end:
-                raise HTTPException(
-                    status_code=422,
-                    detail="For date-only appointments, start and end dates must be the same"
-                )
-
-        except ValueError:
-            raise HTTPException(
-                status_code=422,
-                detail="Invalid date format (expected YYYY-MM-DD)"
-            )
-
-        # Create the appointment
-        appointment_dict = appointment.dict()
-        result = collection.insert_one(appointment_dict)
-        
-        return {"id": str(result.inserted_id)}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error creating appointment: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail="Internal server error"
-        )
+        if 'start' in appointment_data:
+            datetime.fromisoformat(appointment_data['start'])
+        if 'end' in appointment_data:
+            datetime.fromisoformat(appointment_data['end'])
+    except ValueError:
+        raise HTTPException(400, "Formato de fecha inválido")
+    
+    # Save to database
+    status, appt_id = WriteAppointment(appointment_data)
+    
+    if status == 'success':
+        return {"id": appt_id}
+    raise HTTPException(400, detail=status)
 
 # DIAGNOSTIC REPORT ROUTES 
 
