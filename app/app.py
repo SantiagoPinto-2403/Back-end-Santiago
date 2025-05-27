@@ -96,36 +96,22 @@ async def get_service_request_by_identifier(system: str, value: str):
 
 ##APPOINTMENT
 
-@app.get("/servicerequest/{request_id}")
-async def get_service_request_by_id(request_id: str):
-    status, service_request = GetServiceRequestById(request_id)
-    if status == 'success':
-        return service_request
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-    raise HTTPException(status_code=400, detail=status)
-
-@app.post("/servicerequest")
-async def create_service_request(request: Request):
+@app.post("/appointment")
+async def create_appointment(request: Request):
     data = await request.json()
     
-    # Simple validation
-    if 'subject' not in data or 'reference' not in data['subject']:
-        raise HTTPException(status_code=400, detail="Se requiere referencia al paciente")
+    # Validate required fields
+    if 'basedOn' not in data or not data['basedOn']:
+        raise HTTPException(status_code=400, detail="ServiceRequest reference required")
+    if 'start' not in data:
+        raise HTTPException(status_code=400, detail="Appointment time required")
     
-    status, request_id = WriteServiceRequest(data)
+    status, appointment_id = WriteAppointment(data)
     if status == 'success':
-        return {"id": request_id}
-    elif status == 'invalidPatient':
-        raise HTTPException(status_code=400, detail="Paciente no existe")
-    raise HTTPException(status_code=400, detail=status)
-
-@app.get("/servicerequest/patient/{patient_id}")
-async def get_requests_by_patient(patient_id: str):
-    status, requests = GetServiceRequestsByPatient(patient_id)
-    if status == 'success':
-        return requests
-    raise HTTPException(status_code=400, detail=status)
+        return {"id": appointment_id}
+    elif status.startswith('error:'):
+        raise HTTPException(status_code=400, detail=status[6:])
+    raise HTTPException(status_code=500, detail="Internal server error")
 
 ##DIAGNOSTIC REPORT 
 
