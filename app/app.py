@@ -5,7 +5,7 @@ from datetime import datetime
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, GetPatientByIdentifier, CheckDuplicatePatient, WritePatient
 from app.controlador.ServiceRequestCrud import GetServiceRequestByIdentifier, GetServiceRequestById, GetServiceRequestsByPatient, WriteServiceRequest
-from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentsByServiceRequest
+from app.controlador.AppointmentCrud import GetAppointmentsByServiceRequest, WriteAppointment
 
 app = FastAPI()
 
@@ -123,7 +123,7 @@ async def get_appointments_by_service_request(service_request_id: str):
             detail="Invalid service request ID"
         )
     
-    status, appointments = AppointmentCrud.GetAppointmentsByServiceRequest(service_request_id)
+    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
     
     if status == 'success':
         return JSONResponse(
@@ -161,7 +161,7 @@ async def create_appointment(request: Request):
         }])
         
         # Create appointment
-        status, result = AppointmentCrud.WriteAppointment(data)
+        status, result = WriteAppointment(data)
         
         if status == 'success':
             return JSONResponse(
