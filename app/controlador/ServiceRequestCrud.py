@@ -47,3 +47,13 @@ def GetServiceRequestsByPatient(system: str, value: str):
         
     except Exception as e:
         return f"error: {str(e)}", None
+
+def GetServiceRequestById(request_id: str):
+    try:
+        service_request = collection.find_one({"_id": ObjectId(request_id)})
+        if service_request:
+            service_request["_id"] = str(service_request["_id"])
+            return "success", service_request
+        return "notFound", None
+    except Exception:
+        return "error", None
