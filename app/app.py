@@ -115,18 +115,13 @@ async def get_service_request_by_identifier(system: str, value: str):
 
 @app.get("/appointment/{appointment_id}")
 async def get_appointment(appointment_id: str):
-    try:
-        print(f"Fetching appointment {appointment_id}")  # Log to console
-        status, appointment = GetAppointmentById(appointment_id)
-        if status == 'success':
-            return appointment
-        elif status == 'notFound':
-            raise HTTPException(status_code=404, detail="Appointment not found")
-        else:
-            raise HTTPException(status_code=400, detail=status)
-    except Exception as e:
-        print(f"Error fetching appointment: {str(e)}")  # Log errors
-        raise HTTPException(status_code=500, detail=str(e))
+    status, appointment = GetAppointmentById(appointment_id)
+    if status == 'success':
+        return appointment
+    elif status == 'notFound':
+        raise HTTPException(404, detail="Appointment not found")
+    else:
+        raise HTTPException(400, detail=status)
 
 @app.post("/appointment")
 async def create_appointment(appointment_data: dict):
