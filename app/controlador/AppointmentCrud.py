@@ -1,7 +1,6 @@
 from connection import connect_to_mongodb
 from bson import ObjectId
 from datetime import datetime
-from fastapi import HTTPException
 from fhir.resources.appointment import Appointment
 from app.controlador.ServiceRequestCrud import GetServiceRequestById
 
@@ -24,7 +23,7 @@ def GetAppointmentById(appointment_id: str):
 
 def WriteAppointment(appointment_dict: dict):
     try:
-        # Validate ServiceRequest reference structure
+        # Validate ServiceRequest reference
         if not appointment_dict.get('basedOn') or not isinstance(appointment_dict['basedOn'], list):
             return "invalidServiceRequestReference", None
             
