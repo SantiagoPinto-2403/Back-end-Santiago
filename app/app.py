@@ -1,13 +1,12 @@
-from fastapi import FastAPI, HTTPException, Request, APIRouter, Query
+from fastapi import FastAPI, HTTPException, Request
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
 from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient, GetServiceRequestByIdentifier, GetServiceRequestById
 from app.controlador.AppointmentCrud import WriteAppointment, GetAppointmentById
 from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
-from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
+from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier, SearchImagingStudies, UpdateImagingStudy
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from typing import Optional
 
 app = FastAPI()
 
@@ -154,65 +153,61 @@ async def create_appointment(appointment_data: dict):
 
 # IMAGING STUDY ROUTES
 
-@router.post("/")
-async def create_imaging_study(study_data: dict):
-    """Create a new ImagingStudy with validation"""
-    status, result = WriteImagingStudy(study_data)
+@app.post("/imagingstudy")
+async def create_imaging_study(imaging_study_data: dict):
+    # Validate required fields
+    if not imaging_study_data.get('basedOn'):
+        raise HTTPException(400, "Se requiere referencia a Appointment")
+    
+    # Auto-fill missing required FHIR fields
+    imaging_study_data.setdefault('status', 'registered')
+    imaging_study_data.setdefault('subject', {'reference': 'Patient/unknown'})
+    
+    # Validate dates
+    try:
+        if 'started' in imaging_study_data:
+            datetime.fromisoformat(imaging_study_data['started'])
+    except ValueError:
+        raise HTTPException(400, "Formato de fecha inválido")
+    
+    # Save to database
+    status, study_id = WriteImagingStudy(imaging_study_data)
     
     if status == 'success':
-        return {"id": result}
-    elif status.startswith('errorValidating'):
-        raise HTTPException(status_code=422, detail=status)
-    elif status == 'errorInserting':
-        raise HTTPException(status_code=500, detail="Failed to create imaging study")
-    else:
-        raise HTTPException(status_code=400, detail=status)
-
-@router.get("/{study_id}")
-async def get_imaging_study_by_id(study_id: str):
-    """Get an ImagingStudy by ID"""
-    status, study = GetImagingStudyById(study_id)
-    
-    if status == 'success':
-        return study
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Imaging study not found")
-    else:
-        raise HTTPException(status_code=500, detail=status)
-
-@router.get("/")
-async def get_imaging_study_by_identifier(
-    system: Optional[str] = Query(None),
-    value: Optional[str] = Query(None)
-):
-    """Get ImagingStudy by identifier (requires both system and value)"""
-    if not (system and value):
+        return {"id": study_id}
+    elif status == 'imagingStudyAlreadyExists':
         raise HTTPException(
             status_code=400,
-            detail="Both system and value parameters are required"
+            detail=f"Ya existe un estudio de imagen para esta cita (ID: {study_id})"
         )
-    
-    status, study = GetImagingStudyByIdentifier(system, value)
-    
-    if status == 'success':
-        return study
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Imaging study not found")
+    elif status == 'appointmentNotFound':
+        raise HTTPException(400, "Cita no encontrada")
     else:
-        raise HTTPException(status_code=500, detail=status)
+        raise HTTPException(400, detail=status)
 
-@router.get("/by-appointment/{appointment_id}")
-async def get_imaging_study_by_appointment(appointment_id: str):
-    """Get ImagingStudy by appointment reference"""
-    # This would require a new CRUD function - see note below
-    status, study = GetImagingStudyByAppointment(appointment_id)
-    
+@app.get("/imagingstudy/{imaging_study_id}")
+async def get_imaging_study(imaging_study_id: str):
+    status, study = GetImagingStudyById(imaging_study_id)
     if status == 'success':
         return study
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="No imaging study found for this appointment")
-    else:
-        raise HTTPException(status_code=500, detail=status)
+    raise HTTPException(404, "Estudio de imagen no encontrado")
+
+@app.get("/imagingstudies")
+async def search_imaging_studies(
+    patient_id: Optional[str] = Query(None),
+    appointment_id: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    modality: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100)
+):
+    criteria = {
+        'patient_id': patient_id,
+        'appointment_id': appointment_id,
+        'status': status,
+        'modality': modality
+    }
+    return SearchImagingStudies(criteria, page, page_size)
 
 if __name__ == '__main__':
     import uvicorn
