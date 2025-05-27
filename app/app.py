@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, body
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -125,7 +125,7 @@ async def get_appointments_by_service_request(service_request_id: str):
         return appointments
     else:
         raise HTTPException(400, detail=status)
-        
+
 @app.post("/appointment")
 async def create_appointment(appointment_data: dict):
     # Validate required fields
