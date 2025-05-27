@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
+from pydantic import BaseModel
+from typing import List, Optional
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, GetPatientByIdentifier, CheckDuplicatePatient, WritePatient
 from app.controlador.ServiceRequestCrud import GetServiceRequestByIdentifier, GetServiceRequestById, GetServiceRequestsByPatient, WriteServiceRequest
@@ -140,53 +142,91 @@ async def get_appointments_by_service_request(service_request_id: str):
             detail="Error fetching appointments"
         )
 
+class AppointmentParticipant(BaseModel):
+    actor: dict
+    status: str
+
+class AppointmentCreate(BaseModel):
+    resourceType: str = "Appointment"
+    status: str = "booked"
+    basedOn: List[dict]
+    start: str
+    end: str
+    appointmentType: dict
+    description: Optional[str] = None
+    participant: List[AppointmentParticipant]
+
 @app.post("/appointment")
-async def create_appointment(request: Request):
+async def create_appointment(appointment: AppointmentCreate):
     try:
-        data = await request.json()
-        
-        # Basic validation
-        if not data.get('basedOn'):
+        # Validate service request reference
+        if not appointment.basedOn or not isinstance(appointment.basedOn, list):
             raise HTTPException(
                 status_code=422,
-                detail="Missing ServiceRequest reference"
+                detail="Appointment must reference a ServiceRequest"
             )
-        
-        # Set default values
-        data.setdefault('status', 'booked')
-        data.setdefault('participant', [{
-            'actor': {'reference': 'Practitioner/unknown'},
-            'status': 'accepted'
-        }])
-        
-        # Create appointment
-        status, result = WriteAppointment(data)
-        
-        if status == 'success':
-            return JSONResponse(
-                status_code=201,
-                content={"id": result}
-            )
-        elif status == 'appointmentAlreadyExists':
+
+        sr_reference = appointment.basedOn[0].get('reference', '')
+        if not sr_reference.startswith('ServiceRequest/'):
             raise HTTPException(
-                status_code=409,
-                detail=f"Appointment already exists: {result}"
+                status_code=422,
+                detail="Invalid ServiceRequest reference format"
             )
-        elif status == 'serviceRequestNotFound':
+
+        sr_id = sr_reference.split('/')[1]
+        if not ObjectId.is_valid(sr_id):
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid ServiceRequest ID format"
+            )
+
+        # Verify service request exists
+        from app.controlador.ServiceRequestCrud import GetServiceRequestById
+        sr_status, sr_data = GetServiceRequestById(sr_id)
+        if sr_status != 'success':
             raise HTTPException(
                 status_code=404,
                 detail="Referenced ServiceRequest not found"
             )
-        else:
+
+        # Check for existing appointment
+        existing_appt = collection.find_one({
+            "basedOn.reference": f"ServiceRequest/{sr_id}"
+        })
+        if existing_appt:
             raise HTTPException(
-                status_code=400,
-                detail=status.split(':')[-1].strip()
+                status_code=409,
+                detail=f"Appointment already exists: {str(existing_appt['_id'])}"
             )
-            
+
+        # Validate dates
+        try:
+            start_dt = datetime.fromisoformat(appointment.start)
+            end_dt = datetime.fromisoformat(appointment.end)
+            if end_dt <= start_dt:
+                raise HTTPException(
+                    status_code=422,
+                    detail="Appointment end time must be after start time"
+                )
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail="Invalid date format"
+            )
+
+        # Create the appointment
+        appointment_dict = appointment.dict()
+        result = collection.insert_one(appointment_dict)
+        
+        return {"id": str(result.inserted_id)}
+
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error creating appointment: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Server error: {str(e)}"
+            detail="Internal server error"
         )
 
 # DIAGNOSTIC REPORT ROUTES 
