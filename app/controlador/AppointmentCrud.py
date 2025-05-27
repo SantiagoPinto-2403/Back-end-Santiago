@@ -8,29 +8,15 @@ collection = connect_to_mongodb("RIS_DataBase", "Appointments")
 
 def GetAppointmentsByServiceRequest(service_request_id: str):
     try:
-        if not service_request_id or not ObjectId.is_valid(service_request_id):
-            return "invalidIdFormat", None
+        appointments = list(collection.find({
+            "basedOn.reference": f"ServiceRequest/{service_request_id}"
+        }))
         
-        # Try multiple reference formats
-        query = {
-            "$or": [
-                {"basedOn.reference": f"ServiceRequest/{service_request_id}"},
-                {"basedOn.reference": f"ServiceRequest/{ObjectId(service_request_id)}"},
-                {"basedOn.reference": {"$regex": f"ServiceRequest/{service_request_id}$"}},
-                {"basedOn.0.reference": f"ServiceRequest/{service_request_id}"}
-            ]
-        }
-        
-        appointments = list(collection.find(query))
-        
-        # Convert ObjectIds to strings
         for appt in appointments:
             appt["_id"] = str(appt["_id"])
             
         return "success", appointments
-        
     except Exception as e:
-        print(f"DB Error in GetAppointmentsByServiceRequest: {str(e)}")
         return f"error: {str(e)}", None
 
 def WriteAppointment(appointment_dict: dict):
