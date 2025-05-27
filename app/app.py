@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 from pydantic import BaseModel
 from typing import List, Optional
+from bson import ObjectId
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, GetPatientByIdentifier, CheckDuplicatePatient, WritePatient
 from app.controlador.ServiceRequestCrud import GetServiceRequestByIdentifier, GetServiceRequestById, GetServiceRequestsByPatient, WriteServiceRequest
