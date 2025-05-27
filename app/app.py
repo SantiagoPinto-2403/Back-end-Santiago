@@ -98,7 +98,6 @@ async def get_requests_by_patient(system: str, value: str):
     else:
         raise HTTPException(400, detail=status)
 
-# Add these endpoints if not already present
 @app.get("/servicerequest/{request_id}")
 async def get_service_request(request_id: str):
     status, request = GetServiceRequestById(request_id)
@@ -145,49 +144,64 @@ async def get_appointments_by_service_request(service_request_id: str):
 async def create_appointment(request: Request):
     try:
         data = await request.json()
+        print("Received appointment data:", data)  # Debug logging
         
         # Basic validation
         if not data.get('basedOn'):
             raise HTTPException(
                 status_code=422,
-                detail="Missing ServiceRequest reference"
+                detail="Missing ServiceRequest reference in 'basedOn'"
             )
         
-        # Set default values
-        data.setdefault('status', 'booked')
-        data.setdefault('participant', [{
-            'actor': {'reference': 'Practitioner/unknown'},
-            'status': 'accepted'
-        }])
+        # Set default status if not provided
+        if 'status' not in data:
+            data['status'] = 'booked'
+            
+        # Validate participant structure
+        if 'participant' not in data:
+            data['participant'] = [{
+                'actor': {'reference': 'Practitioner/unknown'},
+                'status': 'accepted'
+            }]
+        elif not isinstance(data['participant'], list):
+            raise HTTPException(
+                status_code=422,
+                detail="Participant must be an array"
+            )
         
         # Create appointment
-        status, result = WriteAppointment(data)
+        status, result = AppointmentCrud.WriteAppointment(data)
         
         if status == 'success':
             return JSONResponse(
                 status_code=201,
                 content={"id": result}
             )
+        elif status.startswith('missingRequiredField:'):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Missing required field: {status.split(':')[1]}"
+            )
         elif status == 'appointmentAlreadyExists':
             raise HTTPException(
                 status_code=409,
                 detail=f"Appointment already exists: {result}"
             )
-        elif status == 'serviceRequestNotFound':
-            raise HTTPException(
-                status_code=404,
-                detail="Referenced ServiceRequest not found"
-            )
         else:
             raise HTTPException(
                 status_code=400,
-                detail=status.split(':')[-1].strip()
+                detail=status
             )
             
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid JSON payload"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"Server error: {str(e)}"
+            detail=f"Internal server error: {str(e)}"
         )
 
 # DIAGNOSTIC REPORT ROUTES 
