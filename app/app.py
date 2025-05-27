@@ -3,7 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
 import uvicorn
-from app.controlador import (AppointmentCrud, ServiceRequestCrud, PatientCrud, DiagnosticReportCrud, ImagingStudyCrud)
+from app.controlador.PatientCrud import GetPatientById, GetPatientByIdentifier, CheckDuplicatePatient, WritePatient
+from app.controlador.ServiceRequestCrud import GetServiceRequestByIdentifier, GetServiceRequestById, GetServiceRequestsByPatient, WriteServiceRequest
+from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentsByServiceRequest
 
 app = FastAPI()
 
