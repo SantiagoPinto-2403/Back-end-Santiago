@@ -38,7 +38,7 @@ async def add_patient(request: Request):
     try:
         new_patient_dict = await request.json()
         status, patient_id = WritePatient(new_patient_dict)
-
+        
         if status == 'success':
             return {"status": "success", "patient_id": patient_id}
         elif status == 'patientExists':
@@ -72,16 +72,16 @@ async def check_duplicate_patient(request: Request):
 @app.post("/servicerequest")
 async def create_service_request(request: Request):
     data = await request.json()
-
+    
     # Validate required identifier
     if not data.get('subject', {}).get('identifier'):
         raise HTTPException(
             status_code=400,
             detail="Se requiere identificador del paciente (sistema + valor)"
         )
-
+    
     status, request_id = WriteServiceRequest(data)
-
+    
     if status == 'success':
         return {"id": request_id}
     elif status == 'patientNotFound':
@@ -92,7 +92,7 @@ async def create_service_request(request: Request):
 @app.get("/servicerequest/patient/{system}/{value}")
 async def get_requests_by_patient(system: str, value: str):
     status, requests = GetServiceRequestsByPatient(system, value)
-
+    
     if status == 'success':
         return requests
     else:
@@ -119,24 +119,24 @@ async def get_service_request_by_identifier(system: str, value: str):
 async def create_appointment(request: Request):
     try:
         appointment_data = await request.json()
-
+        
         # Validate required fields
         if not appointment_data.get('basedOn'):
             raise HTTPException(
                 status_code=422,
                 detail="Appointment must reference a ServiceRequest"
             )
-
+            
         # Auto-fill missing required FHIR fields
         appointment_data.setdefault('status', 'booked')
         appointment_data.setdefault('participant', [{
             'actor': {'reference': 'Practitioner/unknown'},
             'status': 'accepted'
         }])
-
+        
         # Save to database
         status, result = WriteAppointment(appointment_data)
-
+        
         if status == 'success':
             return JSONResponse(
                 status_code=201,
@@ -158,7 +158,7 @@ async def create_appointment(request: Request):
             raise HTTPException(status_code=400, detail="End time must be after start time")
         else:
             raise HTTPException(status_code=400, detail=status)
-
+            
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -167,22 +167,38 @@ async def create_appointment(request: Request):
 
 @app.get("/appointment/service-request/{service_request_id}")
 async def get_appointment_for_service_request(service_request_id: str):
-    if service_request_id == "undefined":
+    try:
+        if not service_request_id or service_request_id.lower() == "undefined":
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid service request ID"
+            )
+        
+        status, appointments = GetAppointmentsByServiceRequest(service_request_id)
+        
+        if status == 'success':
+            if not appointments:
+                return JSONResponse(
+                    status_code=200,
+                    content=[]
+                )
+            return appointments
+        elif status == 'invalidIdFormat':
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid service request ID format"
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=status.split(':')[-1].strip() or "Error fetching appointments"
+            )
+            
+    except Exception as e:
         raise HTTPException(
-            status_code=400,
-            detail="Invalid service request ID"
+            status_code=500,
+            detail=f"Server error: {str(e)}"
         )
-
-    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
-
-    if status == 'success':
-        if not appointments:
-            raise HTTPException(status_code=404, detail="No appointments found")
-        return appointments
-    elif status == 'invalidIdFormat':
-        raise HTTPException(status_code=400, detail="Invalid ID format")
-    else:
-        raise HTTPException(status_code=500, detail=status)
 
 
 # DIAGNOSTIC REPORT ROUTES 
