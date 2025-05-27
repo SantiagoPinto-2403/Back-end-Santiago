@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from datetime import datetime
@@ -119,44 +119,13 @@ async def get_service_request_by_identifier(system: str, value: str):
 
 @app.get("/appointment/service-request/{service_request_id}")
 async def get_appointments_by_service_request(service_request_id: str):
-    if not service_request_id or service_request_id == "undefined":
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid service request ID"
-        )
-    
     status, appointments = GetAppointmentsByServiceRequest(service_request_id)
     
     if status == 'success':
-        return JSONResponse(
-            status_code=200,
-            content=appointments or []
-        )
-    elif status == 'invalidIdFormat':
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid service request ID format"
-        )
+        return appointments
     else:
-        raise HTTPException(
-            status_code=500,
-            detail="Error fetching appointments"
-        )
-
-class AppointmentParticipant(BaseModel):
-    actor: dict
-    status: str
-
-class AppointmentCreate(BaseModel):
-    resourceType: str = "Appointment"
-    status: str = "booked"
-    basedOn: List[dict]
-    start: str
-    end: str
-    appointmentType: dict
-    description: Optional[str] = None
-    participant: List[AppointmentParticipant]
-
+        raise HTTPException(400, detail=status)
+        
 @app.post("/appointment")
 async def create_appointment(appointment_data: dict):
     # Validate required fields
