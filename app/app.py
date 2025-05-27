@@ -139,7 +139,15 @@ async def create_appointment(appointment_data: dict):
     
     if status == 'success':
         return {"id": appt_id}
-    raise HTTPException(400, detail=status)
+    elif status == 'appointmentAlreadyExists':
+        raise HTTPException(
+            status_code=400,
+            detail=f"Ya existe una cita para esta solicitud (ID: {appt_id})"
+        )
+    elif status == 'serviceRequestNotFound':
+        raise HTTPException(400, "Solicitud de servicio no encontrada")
+    else:
+        raise HTTPException(400, detail=status)
 
 # DIAGNOSTIC REPORT ROUTES 
 

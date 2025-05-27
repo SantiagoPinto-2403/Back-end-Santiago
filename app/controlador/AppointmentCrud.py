@@ -1,6 +1,7 @@
 from connection import connect_to_mongodb
 from bson import ObjectId
 from datetime import datetime
+from fastapi import HTTPException
 from fhir.resources.appointment import Appointment
 from app.controlador.ServiceRequestCrud import GetServiceRequestById
 
@@ -18,21 +19,33 @@ def GetAppointmentById(appointment_id: str):
 
 def WriteAppointment(appointment_dict: dict):
     try:
-        # Validate ServiceRequest exists
+        # Validate ServiceRequest reference
         sr_reference = appointment_dict.get('basedOn', [{}])[0].get('reference', '')
         if not sr_reference.startswith('ServiceRequest/'):
-            return "invalidServiceRequest", None
+            return "invalidServiceRequestReference", None
             
         sr_id = sr_reference.split('/')[1]
-        sr_status, _ = GetServiceRequestById(sr_id)
+        
+        # Check if ServiceRequest exists
+        from app.controlador.ServiceRequestCrud import GetServiceRequestById
+        sr_status, sr_data = GetServiceRequestById(sr_id)
         if sr_status != 'success':
             return "serviceRequestNotFound", None
         
-        # FHIR validation
+        # Verify no existing appointment for this ServiceRequest
+        existing_appt = collection.find_one({
+            "basedOn.reference": f"ServiceRequest/{sr_id}"
+        })
+        
+        if existing_appt:
+            return "appointmentAlreadyExists", str(existing_appt['_id'])
+        
+        # Proceed with creation
         appt = Appointment.model_validate(appointment_dict)
         result = collection.insert_one(appt.model_dump())
         
         return "success", str(result.inserted_id)
+        
     except Exception as e:
         return f"error: {str(e)}", None
 
