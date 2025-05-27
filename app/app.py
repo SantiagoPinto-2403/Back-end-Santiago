@@ -1,8 +1,8 @@
 from fastapi import FastAPI, HTTPException, Request
 import uvicorn
 from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
-from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient, GetServiceRequestById
-from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentsByServiceRequest
+from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient
+from app.controlador.AppointmentCrud import WriteAppointment, GetAppointmentById
 from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
 from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
 from fastapi.middleware.cors import CORSMiddleware
@@ -80,23 +80,6 @@ async def get_requests_by_patient(patient_id: str):
     if status == 'success':
         return requests
     raise HTTPException(status_code=400, detail=status)
-
-@app.post("/appointment")
-async def create_appointment(request: Request):
-    data = await request.json()
-    status, appointment_id = WriteAppointment(data)
-    if status == 'success':
-        return {"id": appointment_id}
-    raise HTTPException(status_code=400, detail=status)
-
-@app.get("/appointment/{appointment_id}")
-async def get_appointment_by_id(appointment_id: str):
-    status, appointment = GetAppointmentById(appointment_id)
-    if status == 'success':
-        return appointment
-    elif status == 'notFound':
-        raise HTTPException(status_code=404, detail="Cita no encontrada")
-    raise HTTPException(status_code=400, detail=status) 
 
 # APPOINTMENT ROUTES
 
