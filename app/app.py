@@ -1,11 +1,11 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from datetime import datetime
 import uvicorn
-from app.controlador.PatientCrud import GetPatientById, GetPatientByIdentifier, CheckDuplicatePatient, WritePatient
-from app.controlador.ServiceRequestCrud import GetServiceRequestByIdentifier, GetServiceRequestById, GetServiceRequestsByPatient, WriteServiceRequest
-from app.controlador.AppointmentCrud import GetAppointmentById, WriteAppointment, GetAppointmentsByServiceRequest
+from app.controlador.PatientCrud import GetPatientById, WritePatient, GetPatientByIdentifier, CheckDuplicatePatient
+from app.controlador.ServiceRequestCrud import WriteServiceRequest, GetServiceRequestsByPatient, GetServiceRequestByID
+from app.controlador.AppointmentCrud import WriteAppointment, GetAppointmentById
+from app.controlador.DiagnosticReportCrud import GetDiagnosticReportById, WriteDiagnosticReport, GetDiagnosticReportByIdentifier
+from app.controlador.ImagingStudyCrud import GetImagingStudyById, WriteImagingStudy, GetImagingStudyByIdentifier
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
@@ -16,10 +16,6 @@ app.add_middleware(
     allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
     allow_headers=["*"],  # Permitir todos los encabezados
 )
-
-@app.get("/")
-async def root():
-    return {"message": "RIS API - Use /docs for documentation"}
 
 # PATIENT ROUTES
 
@@ -98,108 +94,43 @@ async def get_requests_by_patient(system: str, value: str):
     else:
         raise HTTPException(400, detail=status)
 
-# Add these endpoints if not already present
-@app.get("/servicerequest/{request_id}")
-async def get_service_request(request_id: str):
-    status, request = GetServiceRequestById(request_id)
+@app.get("/servicerequest/{request_id}", response_model=dict)
+async def get_service_request_by_id(request_id: str):
+    status, service_request = GetServiceRequestById(request_id)  
     if status == 'success':
-        return request
-    raise HTTPException(status_code=404, detail="Solicitud no encontrada")
-
-@app.get("/servicerequest")
-async def get_service_request_by_identifier(system: str, value: str):
-    status, request = GetServiceRequestByIdentifier(system, value)
-    if status == 'success':
-        return request
-    raise HTTPException(status_code=404, detail="Solicitud no encontrada")
+        return service_request 
+    elif status == 'notFound':
+        raise HTTPException(status_code=204, detail="La solicitud de servicio no existe") 
+    else:
+        raise HTTPException(status_code=500, detail=f"Error interno del servidor. {status}")
 
 # APPOINTMENT ROUTES
 
 @app.post("/appointment")
 async def create_appointment(request: Request):
-    try:
-        appointment_data = await request.json()
-        
-        # Validate required fields
-        if not appointment_data.get('basedOn'):
-            raise HTTPException(
-                status_code=422,
-                detail="Appointment must reference a ServiceRequest"
-            )
-            
-        # Auto-fill missing required FHIR fields
-        appointment_data.setdefault('status', 'booked')
-        appointment_data.setdefault('participant', [{
-            'actor': {'reference': 'Practitioner/unknown'},
-            'status': 'accepted'
-        }])
-        
-        # Save to database
-        status, result = WriteAppointment(appointment_data)
-        
-        if status == 'success':
-            return JSONResponse(
-                status_code=201,
-                content={"id": result}
-            )
-        elif status == 'appointmentAlreadyExists':
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": "Appointment already exists for this ServiceRequest",
-                    "existing_appointment_id": result
-                }
-            )
-        elif status == 'serviceRequestNotFound':
-            raise HTTPException(status_code=404, detail="Referenced ServiceRequest not found")
-        elif status == 'serviceRequestNotActive':
-            raise HTTPException(status_code=400, detail="Referenced ServiceRequest is not active")
-        elif status == 'invalidAppointmentDuration':
-            raise HTTPException(status_code=400, detail="End time must be after start time")
-        else:
-            raise HTTPException(status_code=400, detail=status)
-            
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Internal server error: {str(e)}"
-        )
+    data = await request.json()
+    
+    # Simple validation
+    if not data.get('basedOn', {}).get('reference', '').startswith('ServiceRequest/'):
+        raise HTTPException(400, "Se requiere referencia a ServiceRequest válida")
+    
+    status, appt_id = WriteAppointment(data)
+    
+    if status == 'success':
+        return {"id": appt_id}
+    elif status == 'missingServiceRequest':
+        raise HTTPException(400, "No se especificó ServiceRequest")
+    else:
+        raise HTTPException(400, detail=status)
 
 @app.get("/appointment/service-request/{service_request_id}")
-async def get_appointment_for_service_request(service_request_id: str):
-    try:
-        if not service_request_id or service_request_id.lower() == "undefined":
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid service request ID"
-            )
-        
-        status, appointments = GetAppointmentsByServiceRequest(service_request_id)
-        
-        if status == 'success':
-            if not appointments:
-                return JSONResponse(
-                    status_code=200,
-                    content=[]
-                )
-            return appointments
-        elif status == 'invalidIdFormat':
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid service request ID format"
-            )
-        else:
-            raise HTTPException(
-                status_code=500,
-                detail=status.split(':')[-1].strip() or "Error fetching appointments"
-            )
-            
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Server error: {str(e)}"
-        )
-
+async def get_appointments_by_service_request(service_request_id: str):
+    status, appointments = GetAppointmentsByServiceRequest(service_request_id)
+    
+    if status == 'success':
+        return appointments
+    else:
+        raise HTTPException(400, detail=status)
 
 # DIAGNOSTIC REPORT ROUTES 
 
