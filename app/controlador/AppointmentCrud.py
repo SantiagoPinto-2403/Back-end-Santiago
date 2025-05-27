@@ -2,6 +2,7 @@ from connection import connect_to_mongodb
 from bson import ObjectId
 from datetime import datetime
 from fhir.resources.appointment import Appointment
+from app.controlador.ServiceRequestCrud import GetServiceRequestById
 
 collection = connect_to_mongodb("RIS_DataBase", "Appointments")
 
